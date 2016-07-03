@@ -17,7 +17,7 @@
 STATS_TEMPL = 'http://%(host)s:%(port)s/api/stats'
 PUT_TEMPL = 'http://%(host)s:%(port)s/api/put?details'
 META_TEMPL = 'http://%(host)s:%(port)s/api/uid/tsmeta?tsuid=%(tsuid)s'
-CONF_TEMPL = 'http://%(host)s:%(oprt)s/api/config'
+CONF_TEMPL = 'http://%(host)s:%(port)s/api/config'
 AGGR_TEMPL = 'http://%(host)s:%(port)s/api/aggregators'
 VERSION_TEMPL = 'http://%(host)s:%(port)s/api/version'
 QUERY_TEMPL = 'http://%(host)s:%(port)s/api/query?%(query)s'

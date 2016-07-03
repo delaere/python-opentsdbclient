@@ -123,6 +123,20 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         err = checkErrors(req)
         return err
 
+    def get_configuration(self):
+        """This endpoint returns information about the running configuration of the TSD. 
+
+           It is read only and cannot be used to set configuration options.
+           This endpoint does not require any parameters via query string or body.
+           The response is a hash map of configuration properties and values."""
+        req = requests.get(utils.CONF_TEMPL % {'host': self.hosts[0][0],
+                                               'port': self.hosts[0][1]})
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
     def get_version(self):
         """Used to check OpenTSDB version.
 
