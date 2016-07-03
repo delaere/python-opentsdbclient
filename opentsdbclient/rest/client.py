@@ -85,6 +85,13 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             return err
 
     def get_annotation(self, startTime, endTime=None, tsuid=None):
+        """Used to get an annotation.
+        
+           All annotations are identified by the startTime field and optionally the tsuid field. 
+           Each note can be global, meaning it is associated with all timeseries, or it can be local, 
+           meaning it's associated with a specific tsuid. 
+           If the tsuid is not supplied or has an empty value, the annotation is considered to be a global note."""
+
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
@@ -98,6 +105,13 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             return err
 
     def set_annotation(self, startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
+        """Used to set an annotation.
+        
+           Annotations are very basic objects used to record a note of an arbitrary event at some point, 
+           optionally associated with a timeseries. 
+           Annotations are not meant to be used as a tracking or event based system, 
+           rather they are useful for providing links to such systems by displaying a notice on graphs or via API query calls."""
+
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
@@ -114,6 +128,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             return err
 
     def delete_annotation(self, startTime, endTime=None, tsuid=None):
+        """Used to delete an annotation."""
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
