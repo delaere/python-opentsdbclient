@@ -20,6 +20,7 @@ import requests
 import opentsdbclient
 from opentsdbclient import base
 from opentsdbclient.rest import utils
+from opentsdbErrors import checkErrors
 
 
 class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
@@ -76,7 +77,51 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         """Used to get the list of default aggregation functions."""
         req = requests.get(utils.AGGR_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]})
-        return req
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_annotation(self, startTime, endTime=None, tsuid=None):
+        params = { "startTime":startTime }
+        if endTime is not None: params["endTime"]=endTime
+        if tsuid is not None: params["tsuid"]=tsuid
+        req = requests.get(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
+                                                'port': self.hosts[0][1]},
+                           data = json.dumps(params))
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def set_annotation(self, startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
+        params = { "startTime":startTime }
+        if endTime is not None: params["endTime"]=endTime
+        if tsuid is not None: params["tsuid"]=tsuid
+        if description is not None: params["description"]=description
+        if notes is not None: params["notes"]=notes
+        if custom is not None: params[custom]=custom
+        req = requests.post(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
+                                                 'port': self.hosts[0][1]},
+                            data = json.dumps(params))
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def delete_annotation(self, startTime, endTime=None, tsuid=None):
+        params = { "startTime":startTime }
+        if endTime is not None: params["endTime"]=endTime
+        if tsuid is not None: params["tsuid"]=tsuid
+        req = requests.delete(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
+                                                'port': self.hosts[0][1]},
+                           data = json.dumps(params))
+        err = checkErrors(req)
+        return err
 
     def get_version(self):
         """Used to check OpenTSDB version.
@@ -101,6 +146,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
     def get_query(self, query):
         return self._make_query(query, 'get')
 
+#TODO: merge with the check for errors? or is the error function useless in the end?
     @staticmethod
     def process_response(resp):
         try:

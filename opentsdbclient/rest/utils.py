@@ -21,3 +21,5 @@ CONF_TEMPL = 'http://%(host)s:%(oprt)s/api/config'
 AGGR_TEMPL = 'http://%(host)s:%(port)s/api/aggregators'
 VERSION_TEMPL = 'http://%(host)s:%(port)s/api/version'
 QUERY_TEMPL = 'http://%(host)s:%(port)s/api/query?%(query)s'
+ANNOT_TEMPL = 'http://%(host)s:%(port)s/api/annotation'
+
