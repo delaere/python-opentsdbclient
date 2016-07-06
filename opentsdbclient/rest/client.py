@@ -22,6 +22,15 @@ from opentsdbclient import base
 from opentsdbclient.rest import utils
 from opentsdbErrors import checkErrors
 
+#TODO: missing API endpoints:
+
+#/api/put - to be improved
+#/api/query
+#/api/search
+#/api/uid - retention is a special case of this
+#/api/tree - for advanced uses
+
+#TODO: add support for compression of the json content, at least in put.
 
 class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
@@ -31,6 +40,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                                                 'port': self.hosts[0][1]})
         return req
 
+    #TODO more pythonic interface
     def put_meter(self, meters):
         """Post new meter(s) to the database.
 
@@ -45,6 +55,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         """
         res = []
         meters = self._check_meters(meters)
+        #TODO add support for summary and other put options
         for meter_dict in meters:
             req = requests.post(utils.PUT_TEMPL %
                                 {'host': self.hosts[0][0],
@@ -152,6 +163,47 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         else:
             return err
 
+    def drop_caches(self):
+        """This endpoint purges the in-memory data cached in OpenTSDB. 
+        This includes all UID to name and name to UID maps for metrics, tag names and tag values."""
+        req = requests.get(utils.DCACH_TEMPL % {'host': self.hosts[0][0],
+                                                'port': self.hosts[0][1]})
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_serializers(self):
+        """Used to get the list of serializer plugins loaded by the running TSD. 
+        Information given includes the name, implemented methods, content types and methods.."""
+        req = requests.get(utils.SERIAL_TEMPL % {'host': self.hosts[0][0],
+                                                 'port': self.hosts[0][1]})
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def suggest(self, datatype, query=None, maxResults=None):
+        """This endpoint provides a means of implementing an "auto-complete" call that can 
+           be accessed repeatedly as a user types a request in a GUI. 
+           It does not offer full text searching or wildcards, rather it simply matches 
+           the entire string passed in the query on the first characters of the stored data. """
+        params = { "type":datatype }
+        if query is not None: params["q"]=query
+        if maxResults is not None and maxResults>0: params["max"]=maxResults
+        req = requests.post(utils.SUGGEST_TEMPL % {'host': self.hosts[0][0],
+                                                 'port': self.hosts[0][1]},
+                           data = json.dumps(params))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
     def get_version(self):
         """Used to check OpenTSDB version.
 
@@ -163,17 +215,17 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                                                   'port': self.hosts[0][1]})
         return req
 
-    def _make_query(self, query, verb):
-        meth = getattr(requests, verb.lower(), None)
-        if meth is None:
-            pass
-        req = meth(utils.QUERY_TEMPL % {'host': self.hosts[0][0],
-                                        'port': self.hosts[0][1],
-                                        'query': query})
-        return req
-
-    def get_query(self, query):
-        return self._make_query(query, 'get')
+#    def _make_query(self, query, verb):
+#        meth = getattr(requests, verb.lower(), None)
+#        if meth is None:
+#            pass
+#        req = meth(utils.QUERY_TEMPL % {'host': self.hosts[0][0],
+#                                        'port': self.hosts[0][1],
+#                                        'query': query})
+#        return req
+#
+#    def get_query(self, query):
+#        return self._make_query(query, 'get')
 
 #TODO: merge with the check for errors? or is the error function useless in the end?
     @staticmethod

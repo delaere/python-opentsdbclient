@@ -22,4 +22,7 @@ AGGR_TEMPL = 'http://%(host)s:%(port)s/api/aggregators'
 VERSION_TEMPL = 'http://%(host)s:%(port)s/api/version'
 QUERY_TEMPL = 'http://%(host)s:%(port)s/api/query?%(query)s'
 ANNOT_TEMPL = 'http://%(host)s:%(port)s/api/annotation'
+DCACH_TEMPL = 'http://%(host)s:%(port)s/api/dropcaches'
+SERIAL_TEMPL = 'http://%(host)s:%(port)s/api/serializers'
+SUGGEST_TEMPL = 'http://%(host)s:%(port)s/api/suggest'
 
