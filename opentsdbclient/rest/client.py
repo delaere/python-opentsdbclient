@@ -17,6 +17,7 @@ import json
 
 import requests
 
+import metric from opentsdbmetric as opentsdbmetric
 import opentsdbquery
 import opentsdbclient
 from opentsdbclient import base
@@ -24,8 +25,7 @@ from opentsdbclient.rest import utils
 from opentsdberrors import checkErrors
 
 #TODO: missing API endpoints:
-#/api/query
-#/api/query/exp - not needed immediately...
+#/api/query/last
 #/api/config/filters - simple... could also be used to prepare the query checks 
 #/api/search
 #/api/uid - retention is a special case of this
@@ -45,7 +45,13 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         else:
             return err
 
-    #TODO more pythonic interface: should define a class for meters
+    #TODO do the following in the base class + telnet api
+    #def put_meter(self, metrics, summary=False, details=False, sync=False, sync_timeout=0):
+    #for m in metrics:
+    #    if not isinstance(m,opentsdbmetric):
+    #        raise TypeError("Please use opentsdbmetric to define metrics.")
+    #    else:
+    #        m.check()
     def put_meter(self, meters, summary=False, details=False, sync=False, sync_timeout=0):
         """Post new meter(s) to the database.
 

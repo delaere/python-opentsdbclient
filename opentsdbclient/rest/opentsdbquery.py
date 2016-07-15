@@ -153,6 +153,26 @@ class OpenTSDBFilter:
             not isinstance(self.groupBy,bool)):
                raise TypeError("OpenTSDBFilter type mismatch")
 
+class OpenTSDBFilterSet:
+    """a list of OpenTSDBFilters associated to an id, for the expression query."""
+
+    def __init__(self, theId, filters):
+        self.theId = theId
+        self.filters = filters
+
+    def getMap(self):
+        return {"id": self.theId,
+                "tags": map(lambda f: f.getMap(), self.filters)}
+
+    def check(self):
+        if (not isinstance(self.theId,basestring)):
+            raise TypeError("OpenTSDBFilterSet arg type mismatch")
+        if len(self.filters)<1:
+            raise ValueError("There must be at least one OpenTSDBFilter in a OpenTSDBFilterSet.")
+        for f in self.filters:
+            if not isinstance(f,OpenTSDBFilter):
+                raise TypeError("OpenTSDBFilterSet arg type mismatch")
+            f.check()
 
 class OpenTSDBExpQuery:
     """Allows for querying data using expressions. The query is broken up into different sections.
@@ -172,42 +192,157 @@ class OpenTSDBExpQuery:
     See http://opentsdb.net/docs/build/html/api_http/query/exp.html
     """
 
-    #TODO implement the methods
-    def __init__(self, timeSection, downsampler, fillPolicies, filters, metrics, expressions, joins, outputs):
-        pass
-
+    def __init__(self, timeSection, filters, metrics, expressions, outputs=None):
+        self.timeSection = timeSection # from the static method below
+        self.filters = filters # list of OpenTSDBFilterSet
+        self.metrics = metrics # a list of metrics form the method below
+        self.expressions = expressions# a list of expressions from the method below
+        self.outputs = outputs
+        
     def getMap(self):
-        pass
+        myself = { "time": self.timeSection,
+                   "filters": map(lambda f:f.getMap(),self.filters),
+                   "metrics": self.metrics,
+                   "expressions": self.expressions
+                   }
+        if self.outputs is not None: 
+            myself["outputs"] = self.outputs
+        return myself
 
     def check(self):
-        pass
+        if (not isinstance(self.timeSection,dict) or
+            not isinstance(self.filters,list) or
+            not isinstance(self.metrics,list) or
+            not isinstance(self.expressions,list)):
+            raise TypeError("OpenTSDBExpQuery arg type mismatch.")
+        if len(self.filters)<1:
+            raise ValueError("At least one filter must be specified.")
+        for f in self.filters:
+            if not isinstance(f,OpenTSDBFilterSet):
+                raise TypeError("OpenTSDBExpQuery filter type mismatch.")
+            else:
+                f.check()
+        if len(self.metrics)<1:
+            raise ValueError("There must be at least one metric.")
+        for m in self.metrics:
+            if not isinstance(m,dict):
+                raise TypeError("OpenTSDBExpQuery metric type mismatch.")
+        if len(self.expressions)<1:
+            raise ValueError("At least one expression must be specified.")
+        for e in self.expressions:
+            if not isinstance(e,dict):
+                raise TypeError("OpenTSDBExpQuery expression type mismatch.")
+        if self.outputs is not None:
+            if not isinstance(self.outputs,dict):
+                raise TypeError("OpenTSDBExpQuery arg type mismatch.")
 
-    # methods below are there to help in the constructor.
+    # Methods below are there to help in the constructor.
+    # They contains additional checks.
 
     @staticmethod
     def timeSection(aggregator, start, end=None, downsampler=None, rate=False):
-        return {}
+        """The time section is required. It affects the time range and optional reductions for all metrics requested."""
+        if not isinstance(start,int) or not isinstance(aggregator, basestring) or not isinstance(rate, bool):
+            raise TypeError("timeSection args type mismatch.")
+        timesection = { "start": start, 
+                        "aggregator": aggregator,
+                        "rate": rate}
+        if end is not None: 
+            if not isinstance(end,int):
+                raise TypeError("end must be integer")
+            timesection["end"]=end
+        if downsampler is not None: 
+            if not isinstance(downsample, dict):
+                raise TypeError("DownSampler should be a dict")
+            timesection["downsampler"]=downsampler
+        
+        return timesection
 
     @staticmethod
     def downsampler(interval, aggregator, fillPolicy=None):
-        return {}
+        """Reduces the number of data points returned. Part of the time section."""
+        downSampler = { "interval": interval,
+                        "aggregator": aggregator}
+        if not isinstance(interval,basestring) or not isinstance(aggregator,basestring):
+            raise TypeError("downsampler args type mismatch.")
+        if fillPolicy is not None:
+            if not isinstance(fillPolicy, dict):
+                raise TypeError("Fill Policy should be a dict")
+            downSampler["fillPolicy"]=fillPolicy
+        return downSampler
 
     @staticmethod
     def fillPolicy(policy, value=None):
-        return {}
+        """These are used to replace "missing" values, i.e. when a data point was expected but couldn't be found in storage."""
+        if policy not in ["nan", "null", "zero", "scalar"]:
+            raise ValueError("Unkonwn policy. Must be one of nan,null,zero,scalar.")
+        if policy is "scalar":
+            if value is None:
+                raise ValueError("Must specify a value for scalar fill policy")
+            elif not isinstance(value,(int,float)):
+                raise TypeError("Scalar fill policy value must be an integer or floating point.")
+            return {"policy":"scalar", "value": value}
+        return {"policy":policy}
 
     @staticmethod
     def metric(metricId, filterId, metricName, aggregator=None, fillPolicy=None):
-        return {}
+        """The metrics list determines which metrics are included in the expression. 
+           There must be at least one metric."""
+        if not isinstance(metricId,basestring) or not isinstance(filterId,basestring) or not isinstance(metricName,basestring):
+            raise TypeError("metric args type mismatch.")
+        theMetric = {"id": metricId, "filter": filterId, "metric": metricName}
+        if aggregator is not None:
+            if not isinstance(aggregator,basestring):
+                raise TypeError("metric args type mismatch.")
+            theMetric["aggregator"] = aggregator
+        if fillPolicy is not None:
+            if not isinstance(fillPolicy,dict):
+                raise TypeError("Fill Policy should be a dict")
+            theMetric["fillPolicy"] = fillPolicy
+        return theMetric
 
     @staticmethod
     def expression(exprId, expr, join=None, fillPolicy=None):
-        return {}
+        """The variables in an expression MUST refer to either a metric ID field or an expression ID field. 
+           Nested expressions are supported but exceptions will be thrown if a self reference 
+           or circular dependency is detected. 
+           So far only basic operations are supported such as addition, subtraction, multiplication, division, modulo"""
+
+        theExpr = { "id": exprId, "expr": expr }
+        if not isinstance(exprId,basestring) or not isinstance(expr,basestring):
+            raise TypeError("expression args type mismatch.")
+        if join is not None:
+            if not isinstance(join, dict):
+                raise TypeError("join should be a dict")
+            theExpr["join"] = join
+        if fillPolicy is not None:
+            if not isinstance(fillPolicy,dict):
+                raise TypeError("Fill Policy should be a dict")
+            theExpr["fillPolicy"] = fillPolicy
+        return theExpr
 
     @staticmethod
     def join(operator, useQueryTags=False, includeAggTags=True):
-        return {}
+        """The join object controls how the various time series for a given metric are merged within an expression. 
+           The two basic operations supported at this time are the union and intersection operators. 
+           Additional flags control join behavior."""
+        if not isinstance(operator,basestring) or not isinstance(useQueryTags,bool) or not isinstance(includeAggTags,bool):
+            raise TypeError("join args type mismatch.")
+        return {"operator": operator, 
+                "useQueryTags": useQueryTags,
+                "includeAggTags": includeAggTags}
 
     @staticmethod
     def output(outputId, alias=None):
-        return {}
+        """These determine the output behavior and allow you to eliminate some expressions 
+           from the results or include the raw metrics. 
+           By default, if this section is missing, all expressions and only the expressions will be serialized. 
+           The field is a list of one or more output objects. 
+           More fields will be added later with flags to affect the output."""
+        if not isinstance(outputId,basestring) or (alias is not None and not isinstance(alias,basestring)):
+            raise TypeError("output args type mismatch.")
+        if alias is None:
+            return {"id": outputId }
+        else:
+            return {"id": outputId, "alias": alias}
+
