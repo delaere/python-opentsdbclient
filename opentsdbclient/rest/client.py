@@ -17,15 +17,16 @@ import json
 
 import requests
 
+import opentsdbquery
 import opentsdbclient
 from opentsdbclient import base
 from opentsdbclient.rest import utils
-from opentsdbErrors import checkErrors
+from opentsdberrors import checkErrors
 
 #TODO: missing API endpoints:
-
-#/api/put - to be improved
 #/api/query
+#/api/query/exp - not needed immediately...
+#/api/config/filters - simple... could also be used to prepare the query checks 
 #/api/search
 #/api/uid - retention is a special case of this
 #/api/tree - for advanced uses
@@ -38,12 +39,17 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         """Get info about what metrics are registered and with what stats."""
         req = requests.get(utils.STATS_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]})
-        return req
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
 
-    #TODO more pythonic interface
-    def put_meter(self, meters):
+    #TODO more pythonic interface: should define a class for meters
+    def put_meter(self, meters, summary=False, details=False, sync=False, sync_timeout=0):
         """Post new meter(s) to the database.
 
+        Meters is a vector dictionnaries.
         Meter dictionary *should* contain the following four required fields:
           - metric: the name of the metric you are storing
           - timestamp: a Unix epoch style timestamp in seconds or milliseconds.
@@ -53,16 +59,29 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
           - tags: a map of tag name/tag value pairs. At least one pair must be
                   supplied.
         """
-        res = []
-        meters = self._check_meters(meters)
-        #TODO add support for summary and other put options
-        for meter_dict in meters:
-            req = requests.post(utils.PUT_TEMPL %
-                                {'host': self.hosts[0][0],
-                                 'port': self.hosts[0][1]},
-                                data=json.dumps(meter_dict))
-            res.append(req)
-        return res
+
+        if details: options = "?details"
+        elif summary: options = "?summary"
+        else: options = ""
+        
+        if sync:
+            if options is "":
+                options +="?"
+            else:
+                options +="&"
+            options +="sync&sync_timeout=%d"%sync_timeout
+
+        req = requests.post(utils.PUT_TEMPL %
+                            {'host': self.hosts[0][0],
+                             'port': self.hosts[0][1],
+                             'options': options },
+                            data=json.dumps(meters)
+                            )
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
 
     def define_retention(self, tsuid, retention_days):
         """Set retention days for the defined by ID timeseries.
@@ -197,6 +216,26 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.post(utils.SUGGEST_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                            data = json.dumps(params))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def query(self, openTSDBQuery):
+        """enables extracting data from the storage system in various formats determined by the serializer selected"""
+        openTSDBQuery.check()
+        params = openTSDBQuery.getMap()
+        if isinstance(openTSDBQuery,opentsdbquery.OpenTSDBQuery):
+            endpoint = utils.QUERY_TEMPL
+        elif isinstance(openTSDBQuery,opentsdbquery.OpenTSDBExpQuery):
+            endpoint = utils.EXPQUERY_TEMPL
+        else:
+            raise TypeError("Not a known query type. Should be OpenTSDBQuery or OpenTSDBExpQuery.")
+        req = requests.post(endpoint % {'host': self.hosts[0][0],
+                                        'port': self.hosts[0][1]},
+                            data = json.dumps(params))
 
         err = checkErrors(req)
         if err is None:

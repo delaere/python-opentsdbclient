@@ -15,7 +15,7 @@
 
 
 STATS_TEMPL = 'http://%(host)s:%(port)s/api/stats'
-PUT_TEMPL = 'http://%(host)s:%(port)s/api/put?details'
+PUT_TEMPL = 'http://%(host)s:%(port)s/api/put%(options)s'
 META_TEMPL = 'http://%(host)s:%(port)s/api/uid/tsmeta?tsuid=%(tsuid)s'
 CONF_TEMPL = 'http://%(host)s:%(port)s/api/config'
 AGGR_TEMPL = 'http://%(host)s:%(port)s/api/aggregators'
@@ -25,4 +25,6 @@ ANNOT_TEMPL = 'http://%(host)s:%(port)s/api/annotation'
 DCACH_TEMPL = 'http://%(host)s:%(port)s/api/dropcaches'
 SERIAL_TEMPL = 'http://%(host)s:%(port)s/api/serializers'
 SUGGEST_TEMPL = 'http://%(host)s:%(port)s/api/suggest'
+utils.QUERY_TEMPL = 'http://%(host)s:%(port)s/api/query'
+utils.EXPQUERY_TEMPL = 'http://%(host)s:%(port)s/api/query/exp' 
 
