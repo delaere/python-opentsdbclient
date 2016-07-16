@@ -346,3 +346,41 @@ class OpenTSDBExpQuery:
         else:
             return {"id": outputId, "alias": alias}
 
+class OpenTSDBQueryLast:
+    """Provides support for accessing the latest value of individual time series. 
+       It provides an optimization over a regular query when only the last data point is required. 
+       Locating the last point can be done with the timestamp of the meta data counter 
+       or by scanning backwards from the current system time."""
+
+    def __init__(self, metrics=None, tsuids=None, resolveNames=False, backScan=True):
+        self.resolveNames = resolveNames
+        self.backScan = backScan
+
+        if ((metrics is None and tsuids is None) or
+            (metrics is None and len(tsuids)==0) or
+            (tsuids is None and len(metrics)==0)):
+            raise ValueError("OpenTSDBQueryLast requires at least one metric or one tsuid.")
+
+        if not isinstance(metrics, list) or not isinstance(tsuids,list) or not isinstance(self.resolveNames,bool) or not isinstance(self.backScan,bool):
+            raise TypeError("OpenTSDBQueryLast arg type mismatch.")
+
+        self.queries = []
+
+        if metrics is not None:
+            for m in metrics:
+                self.queries.append(m)
+        if tsuids is not None:
+            self.queries.append({"tsuids":tsuids})
+
+    def getMap(self):
+        return { "queries": self.queries, "resolveNames": self.resolveNames, "backScan": self.backScan }
+
+    def check(self):
+        pass #all is done in the constructor
+
+    @staticmethod
+    def metric(metric, tags):
+        if not isinstance(metric,basestring) or not isinstance(tags,dict):
+            raise TypeError("metric args type mismatch.")
+        return { "metric":metric, "tags":tags }
+

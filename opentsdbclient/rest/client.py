@@ -17,7 +17,7 @@ import json
 
 import requests
 
-import metric from opentsdbmetric as opentsdbmetric
+from opentsdbmetric import metric as opentsdbmetric
 import opentsdbquery
 import opentsdbclient
 from opentsdbclient import base
@@ -25,7 +25,6 @@ from opentsdbclient.rest import utils
 from opentsdberrors import checkErrors
 
 #TODO: missing API endpoints:
-#/api/query/last
 #/api/config/filters - simple... could also be used to prepare the query checks 
 #/api/search
 #/api/uid - retention is a special case of this
@@ -188,6 +187,17 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         else:
             return err
 
+    def get_filters(self):
+        """This endpoint lists the various filters loaded by the TSD and some information about how to use them."""
+        req = requests.get(utils.FILT_TEMPL % {'host': self.hosts[0][0],
+                                               'port': self.hosts[0][1]})
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+
     def drop_caches(self):
         """This endpoint purges the in-memory data cached in OpenTSDB. 
         This includes all UID to name and name to UID maps for metrics, tag names and tag values."""
@@ -237,6 +247,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             endpoint = utils.QUERY_TEMPL
         elif isinstance(openTSDBQuery,opentsdbquery.OpenTSDBExpQuery):
             endpoint = utils.EXPQUERY_TEMPL
+        elif isinstance(openTSDBQuery,opentsdbquery.OpenTSDBQueryLast):
+            endpoint = utils.QUERYLST_TEMPL
         else:
             raise TypeError("Not a known query type. Should be OpenTSDBQuery or OpenTSDBExpQuery.")
         req = requests.post(endpoint % {'host': self.hosts[0][0],
