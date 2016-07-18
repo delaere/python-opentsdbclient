@@ -16,7 +16,6 @@
 
 STATS_TEMPL = 'http://%(host)s:%(port)s/api/stats'
 PUT_TEMPL = 'http://%(host)s:%(port)s/api/put%(options)s'
-META_TEMPL = 'http://%(host)s:%(port)s/api/uid/tsmeta?tsuid=%(tsuid)s'
 CONF_TEMPL = 'http://%(host)s:%(port)s/api/config'
 FILT_TEMPL = 'http://%(host)s:%(port)s/api/config/filters'
 AGGR_TEMPL = 'http://%(host)s:%(port)s/api/aggregators'
@@ -29,4 +28,6 @@ SUGGEST_TEMPL = 'http://%(host)s:%(port)s/api/suggest'
 QUERY_TEMPL = 'http://%(host)s:%(port)s/api/query'
 EXPQUERY_TEMPL = 'http://%(host)s:%(port)s/api/query/exp' 
 QUERYLST_TEMPL = 'http://%(host)s:%(port)s/api/query/last'
-
+ASSIGNUID_TEMPL = 'http://%(host)s:%(port)s/api/uid/assign'
+TSMETA_TEMPL = 'http://%(host)s:%(port)s/api/uid/tsmeta'
+UIDMETA_TEMPL = 'http://%(host)s:%(port)s/api/uid/uidmeta'

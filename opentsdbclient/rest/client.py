@@ -25,7 +25,6 @@ from opentsdbclient.rest import utils
 from opentsdberrors import checkErrors
 
 #TODO: missing API endpoints:
-#/api/uid - retention is a special case of this
 #/api/tree - for advanced uses
 
 #TODO: add support for compression of the json content, at least in put.
@@ -85,26 +84,6 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             return req.json()
         else:
             return err
-
-    def define_retention(self, tsuid, retention_days):
-        """Set retention days for the defined by ID timeseries.
-
-        ##########################################################
-        NOTE: currently not working directly through the REST API.
-              that should be done directly on the HBase level.
-        ##########################################################
-
-        :param tsuid: hexadecimal representation of the timeseries UID
-        :param retention_days: number of days of data points to retain for the
-                               given timeseries. When set to 0, the default,
-                               data is retained indefinitely.
-        """
-        meta_data = {'tsuid': tsuid, 'retention': retention_days}
-        req = requests.post(utils.META_TEMPL % {'host': self.hosts[0][0],
-                                                'port': self.hosts[0][1],
-                                                'tsuid': tsuid},
-                            data=json.dumps(meta_data))
-        return req
 
     def get_aggregators(self):
         """Used to get the list of default aggregation functions."""
@@ -304,6 +283,200 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.get(utils.VERSION_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]})
         return req
+
+    def assign_uid(self, metric_list=None, tagk_list=None, tagv_list=None):
+        """This endpoint enables assigning UIDs to new metrics, tag names and tag values. 
+           Multiple types and names can be provided in a single call and the API will process each name individually, 
+           reporting which names were assigned UIDs successfully, along with the UID assigned, and which failed due to invalid characters or had already been assigned."""
+
+        if metric_list is None and tagk_list is None and tagv_list is None: 
+            return None
+
+        for metric in metric_list:
+            if not isinstance(metric, basestring):
+                raise TypeError("assign_uid arg type mismatch.")
+        
+        for tagk in tagk_list: 
+            if not isinstance(tagk, basestring):
+                raise TypeError("assign_uid arg type mismatch.")
+
+        for tagv in tagv_list: 
+            if not isinstance(tagv, basestring):
+                raise TypeError("assign_uid arg type mismatch.")
+
+        theData = { "metric":metric_list, "tagk":tagk_list, "tagv":tagv_list }
+
+        req = requests.post(utils.ASSIGNUID_TEMPL % {'host': self.hosts[0][0],
+                                                     'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_tsmeta(self, tsuid):
+        """This endpoint enables searching timeseries meta data information, that is meta data associated with 
+           a specific timeseries associated with a metric and one or more tag name/value pairs. 
+           Some fields are set by the TSD but others can be set by the user."""
+
+        req = requests.get(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
+                                                 'port': self.hosts[0][1]},
+                           data = json.dumps({ "tsuid": tsuid }))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def set_tsmeta(self, tsuid, description=None, displayName=None, notes=None, custom=None, 
+                                units=None, dataType=None, retention=None, maximum=None, minimum=None):
+        """This endpoint enables editing timeseries meta data information, that is meta data associated with 
+           a specific timeseries associated with a metric and one or more tag name/value pairs. 
+           Some fields are set by the TSD but others can be set by the user. 
+           Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
+        if not isinstance(tsuid,basestring):
+            raise TypeError("set_tsmeta arg type mismatch")
+        theData = { "tsuid":tsuid }
+        if description is not None: 
+            if not isinstance(description, basestring):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["description"]=description
+        if displayName is not None: 
+            if not isinstance(displayName, basestring):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["displayName"]=displayName
+        if notes is not None: 
+            if not isinstance(notes, basestring):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["notes"]=notes
+        if custom is not None:
+            if not isinstance(custom, dict):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["custom"]=custom
+        if units is not None: 
+            if not isinstance(units, basestring):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["units"]=units
+        if dataType is not None: 
+            if not isinstance(dataType, basestring):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["dataType"]=dataType
+        if retention is not Note: 
+            if not isinstance(retention, int) or retention<0:
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["retention"]=retention
+        if maximum is not None: 
+            if not isinstance(maximum, float):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["max"]=maximum
+        if minimum is not None: 
+            if not isinstance(minimum, float):
+                raise TypeError("set_tsmeta arg type mismatch")
+            theData["min"]=minimum
+
+        req = requests.post(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
+                                                  'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+
+    def delete_tsmeta(self, tsuid):
+        """This endpoint enables deleting timeseries meta data information.
+           Please note that deleting a meta data entry will not delete the data points stored for the timeseries. 
+           Neither will it remove the UID assignments or associated UID meta objects."""
+        req = requests.delete(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
+                                                    'port': self.hosts[0][1]},
+                              data = json.dumps({ "tsuid": tsuid }))
+
+        err = checkErrors(req)
+        return err
+
+    def define_retention(self, tsuid, retention_days):
+        """Set retention days for the defined by ID timeseries.
+
+        ##########################################################
+        NOTE: currently not working directly through the REST API.
+              that should be done directly on the HBase level.
+        ##########################################################
+
+        :param tsuid: hexadecimal representation of the timeseries UID
+        :param retention_days: number of days of data points to retain for the
+                               given timeseries. When set to 0, the default,
+                               data is retained indefinitely.
+        """
+        return self.set_tsmeta(tsuid, retention=retention_days)
+
+    def get_uidmeta(self, uid, uidtype):
+        """This endpoint enables getting UID meta data information, that is meta data associated with metrics, 
+           tag names and tag values. Some fields are set by the TSD but others can be set by the user. """
+        assert uidtype in ["metric", "tagk", "tagv"]
+        theData = {"uid":uid, "type":uidtype}
+
+        req = requests.get(utils.UIDMETA_TEMPL % {'host': self.hosts[0][0],
+                                                  'port': self.hosts[0][1]},
+                           data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+
+    def set_uidmeta(self, uid, uidtype, description=None, displayName=None, notes=None, custom=None):
+        """This endpoint enables editing  UID meta data information, that is meta data associated with metrics, 
+           tag names and tag values. Some fields are set by the TSD but others can be set by the user.
+           Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
+        assert uidtype in ["metric", "tagk", "tagv"]
+        if not isinstance(uid,basestring):
+            raise TypeError("set_uidmeta arg type mismatch")
+        theData = { "uid":uid }
+        if description is not None: 
+            if not isinstance(description, basestring):
+                raise TypeError("set_uidmeta arg type mismatch")
+            theData["description"]=description
+        if displayName is not None: 
+            if not isinstance(displayName, basestring):
+                raise TypeError("set_uidmeta arg type mismatch")
+            theData["displayName"]=displayName
+        if notes is not None: 
+            if not isinstance(notes, basestring):
+                raise TypeError("set_uidmeta arg type mismatch")
+            theData["notes"]=notes
+        if custom is not None:
+            if not isinstance(custom, dict):
+                raise TypeError("set_uidmeta arg type mismatch")
+            theData["custom"]=custom
+
+        req = requests.post(utils.UIDMETA_TEMPL % {'host': self.hosts[0][0],
+                                                   'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def delete_uidmeta(self, uid, uidtype):
+        """This endpoint enables deleting UID meta data information, that is meta data associated with metrics, tag names and tag values."""
+        assert uidtype in ["metric", "tagk", "tagv"]
+        theData = {"uid":uid, "type":uidtype}
+
+        req = requests.delete(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
+                                                    'port': self.hosts[0][1]},
+                              data = json.dumps(theData))
+
+        err = checkErrors(req)
+        return err
 
 #    def _make_query(self, query, verb):
 #        meth = getattr(requests, verb.lower(), None)
