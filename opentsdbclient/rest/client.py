@@ -20,14 +20,16 @@ import requests
 from opentsdbmetric import metric as opentsdbmetric
 import opentsdbquery
 import opentsdbclient
+#TODO: drop the non-REST part of the client.
 from opentsdbclient import base
 from opentsdbclient.rest import utils
 from opentsdberrors import checkErrors
 
-#TODO: missing API endpoints:
-#/api/tree - for advanced uses
-
 #TODO: add support for compression of the json content, at least in put.
+
+#TODO: make it more OO:
+# objects for tree and rules
+# objects for annotations, tsmeta, uidmeta
 
 class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
@@ -477,6 +479,273 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         err = checkErrors(req)
         return err
+
+    def create_tree(self, name, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
+        """Trees are meta data used to organize time series in a heirarchical structure for browsing similar to a typical file system. 
+           This allows for creating a tree definition. Tree definitions include configuration and meta data accessible via this endpoint, 
+           as well as the rule set defined with other methods.
+           When creating a tree it will have the enabled field set to false by default. 
+           After creating a tree you should add rules then use the tree/test endpoint with a few TSUIDs to make sure the resulting tree will be what you expected. 
+           After you have verified the results, you can set the enabled field to true and new TSMeta objects or a tree synchronization will start to populate branches."""
+        if not isinstance(name, basestring):
+            raise TypeError("create_tree arg type mismatch.")
+        theData = {"name":name, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures }
+        if description is not None :
+            if not isinstance(description, basestring):
+                raise TypeError("create_tree arg type mismatch.")
+            theData["description"]=description
+        if notes is not None:
+            if not isinstance(notes, basestring):
+                raise TypeError("create_tree arg type mismatch.")
+            theData["notes"]=notes
+        
+        req = requests.post(utils.TREE_TEMPL % {'host': self.hosts[0][0],
+                                                'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+
+    def delete_tree(self, treeId, definition=False):
+        """Using this method will remove only collisions, not matched entries and branches for the given tree from storage. 
+           Because the delete can take some time, the endpoint will return a successful 204 response without data if the delete completed. 
+           If the tree was not found, it will return a 404. 
+           If you want to delete the tree definition itself, you can supply the defintion flag in the query string 
+           with a value of true and the tree and rule definitions will be removed as well."""
+        theData = { "treeId":treeId, "definition":definition }
+        
+        req = requests.delete(utils.TREE_TEMPL % {'host': self.hosts[0][0],
+                                                  'port': self.hosts[0][1]},
+                              data = json.dumps(theData))
+
+        err = checkErrors(req)
+        return err
+
+    def edit_tree(self, treeId, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
+        """Using this method, you can edit most of the fields for an existing tree. A successful request will return the modified tree object."""
+        if not isinstance(treeId, int):
+            raise TypeError("create_tree arg type mismatch.")
+        theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures }
+        if description is not None :
+            if not isinstance(description, basestring):
+                raise TypeError("create_tree arg type mismatch.")
+            theData["description"]=description
+        if notes is not None:
+            if not isinstance(notes, basestring):
+                raise TypeError("create_tree arg type mismatch.")
+            theData["notes"]=notes
+        
+        req = requests.post(utils.TREE_TEMPL % {'host': self.hosts[0][0],
+                                                'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_tree(self, treeId=None):
+        """This returns the tree with the given id."""
+
+        req = requests.get(utils.TREE_TEMPL % {'host': self.hosts[0][0],
+                                               'port': self.hosts[0][1]},
+                           data = json.dumps({"treeId":treeId}))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_tree_branch(self, treeId=None, branch=None):
+        """A branch represents a level in the tree heirarchy and contains information about child branches and/or leaves.
+           A branch is identified by a branchId, a hexadecimal encoded string that represents the ID of the tree it belongs to 
+           as well as the IDs of each parent the branch stems from. 
+           All branches stem from the ROOT branch of a tree and this is usually the starting place when browsing. 
+           To fetch the ROOT just call this endpoingt with a valid treeId. The root branch ID is also a 4 character encoding of the tree ID."""
+
+        if branch is not None:
+            theData = { "branch":branch }
+        elif treeId is not None:
+            theData = { "treeId":treeId }
+        else:
+            raise ValueError("get_tree_branch requires at least one of treeId or branch.")
+
+        req = requests.get(utils.TREEBRANCH_TEMPL % {'host': self.hosts[0][0],
+                                                     'port': self.hosts[0][1]},
+                           data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_tree_collisions(self, treeId, tsuids):
+        """When processing a TSMeta, if the resulting leaf would overwrite an existing leaf with a different TSUID, a collision will be recorded. 
+           This endpoint allows retreiving a list of the TSUIDs that were not included in a tree due to collisions. 
+           It is useful for debugging in that if you find a TSUID in this list, you can pass it through the /tree/test endpoint to get details on why the collision occurred.
+           Calling this endpoint without a list of one or more TSUIDs will return all collisions in the tree. 
+           If you have a large number of timeseries in your system, the response can potentially be very large. Thus it is best to use this endpoint with specific TSUIDs.
+           If storeFailures is diabled for the tree, this endpoint will not return any data. Collisions will still appear in the TSD's logs."""
+
+        theData = { "treeId":treeId }
+        thetsuids = ""
+        for tsuid in tsuids:
+            thetsuids += tsuid+","
+        if len(tsuids)>0:
+            thetsuids = thetsuids[:-1]
+        theData["tsuids"]=thetsuids
+
+        req = requests.get(utils.TREECOLL_TEMPL % {'host': self.hosts[0][0],
+                                                   'port': self.hosts[0][1]},
+                           data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_tree_notmatched(self, treeId, tsuids):
+        """When processing a TSMeta, if the tree has strictMatch enabled and the meta fails to match on a rule in any level of the set, a not matched entry will be recorded. 
+           This endpoint allows for retrieving the list of TSUIDs that failed to match a rule set. 
+           It is useful for debugging in that if you find a TSUID in this list, you can pass it through the /tree/test endpoint to get details on why the meta failed to match.
+           Calling this endpoint without a list of one or more TSUIDs will return all non-matched TSUIDs in the tree. 
+           If you have a large number of timeseries in your system, the response can potentially be very large. Thus it is best to use this endpoint with specific TSUIDs.
+           If storeFailures is diabled for the tree, this endpoint will not return any data. Not Matched entries will still appear in the TSD's logs."""
+           
+        theData = { "treeId":treeId }
+        thetsuids = ""
+        for tsuid in tsuids:
+            thetsuids += tsuid+","
+        if len(tsuids)>0:
+            thetsuids = thetsuids[:-1]
+        theData["tsuids"]=thetsuids
+
+        req = requests.get(utils.TREEMATCH_TEMPL % {'host': self.hosts[0][0],
+                                                    'port': self.hosts[0][1]},
+                           data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+        
+    def test_tree(self, treeId, tsuids):
+        """For debugging a rule set, the test endpoint can be used to run a TSMeta object through a tree's rules and determine where 
+           in the heirarchy the leaf would appear. Or find out why a timeseries failed to match on a rule set or collided with an existing timeseries. 
+           The only method supported is GET and no changes will be made to the actual tree in storage when using this endpoint."""
+
+        theData = { "treeId":treeId }
+        thetsuids = ""
+        for tsuid in tsuids:
+            thetsuids += tsuid+","
+        if len(tsuids)>0:
+            thetsuids = thetsuids[:-1]
+        theData["tsuids"]=thetsuids
+
+        req = requests.get(utils.TREETEST_TEMPL % {'host': self.hosts[0][0],
+                                                   'port': self.hosts[0][1]},
+                           data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def get_tree_rule(self, treeId, level=0, order=0):
+        """Access to an individual tree rule. 
+           Rules are addressed by their tree ID, level and order and all requests require these three parameters."""
+        theData = { "treeId":treeId, "level":level, "order":order }
+
+        req = requests.get(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
+                                                   'port': self.hosts[0][1]},
+                           data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def set_tree_rule(self, treeId, level=0, order=0, ruleType=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
+        """allows for easy modification of a single rule in the set.
+           You can create a new rule or edit an existing rule. New rules require a type value. 
+           Existing trees require a valid treeId ID and any fields that require modification. 
+           A successful request will return the modified rule object. 
+           Note that if a rule exists at the given level and order, any changes will be merged with or overwrite the existing rule."""
+
+        theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx }
+        if ruleType is not None:
+            if ruleType not in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"]:
+                raise ValueError("unknown rule type")
+            theData["type"]=ruleType
+        if description is not None:
+            if not isinstance(description, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["description"]=description
+        if notes is not None:
+            if not isinstance(notes, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["notes"]=notes
+        if field is not None:
+            if not isinstance(field, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["field"]=field
+        if customField is not None:
+            if not isinstance(customField, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["customField"]=customField
+        if regex is not None:
+            if not isinstance(regex, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["regex"]=regex
+        if separator is not None:
+            if not isinstance(separator, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["separator"]=separator
+        if displayFormat is not None:
+            if not isinstance(displayFormat, basestring):
+                raise TypeError("set_tree_rule arg type mismatch")
+            theData["displayFormat"]=displayFormat
+
+        req = requests.post(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
+                                                    'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
+    def delete_tree_rule(self, treeId, level=0, order=0, deleteAll=False):
+        """Using the DELETE method will remove a rule from a tree.
+           If deleteAll is true, all rules from the tree will be deleted."""
+        if deleteAll:
+            theData = { "treeId":treeId }
+        
+            req = requests.delete(utils.TREERULES_TEMPL % {'host': self.hosts[0][0],
+                                                           'port': self.hosts[0][1]},
+                                  data = json.dumps(theData))
+        else:
+            theData = { "treeId":treeId, "level":level, "order":order }
+        
+            req = requests.delete(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
+                                                          'port': self.hosts[0][1]},
+                                  data = json.dumps(theData))
+
+        err = checkErrors(req)
+        return err
+
 
 #    def _make_query(self, query, verb):
 #        meth = getattr(requests, verb.lower(), None)

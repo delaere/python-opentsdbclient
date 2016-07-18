@@ -1,5 +1,4 @@
-        Meters is a vector dictionnaries.
-        Meter dictionary *should* contain the following four required fields:
+#TODO make a difference between a metric, a time series and a data point.
 
 class metric:
     """Simple class to represent a metric"""
