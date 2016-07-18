@@ -25,8 +25,6 @@ from opentsdbclient.rest import utils
 from opentsdberrors import checkErrors
 
 #TODO: missing API endpoints:
-#/api/config/filters - simple... could also be used to prepare the query checks 
-#/api/search
 #/api/uid - retention is a special case of this
 #/api/tree - for advanced uses
 
@@ -260,6 +258,41 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             return req.json()
         else:
             return err
+
+    def search(self, mode, query="", metric="*", tags={}, limit=25, startindex=0, useMeta=False):
+        """This endpoint provides a basic means of searching OpenTSDB meta data. 
+           Lookups can be performed against the tsdb-meta table when enabled. 
+           Optionally, a search plugin can be installed to send and retreive information from 
+           an external search indexing service such as Elastic Search. 
+           It is up to each search plugin to implement various parts of this endpoint and return data in a consistent format. 
+           The type of object searched and returned depends on the endpoint chosen."""
+
+        endpoint = { "TSMETA": "/api/search/tsmeta", 
+                     "TSMETA_SUMMARY":"/api/search/tsmeta_summary",
+                     "TSUIDS":"/api/search/tsuids",
+                     "UIDMETA":"/api/search/uidmeta",
+                     "ANNOTATION":"/api/search/annotation",
+                     "LOOKUP":"/api/search/lookup" }
+        assert mode.upper() in endpoint
+
+        if mode.upper() is "LOOKUP":
+            tagslist =[]
+            for k,v in tags.iteritems():
+                tagslist.append({ "key":k, "value":v })
+            theData = { "metric":metric, "tags": tagslist,  "useMeta": useMeta }
+        else:
+            theData = { "query":query, "limit":limit, "startindex":startindex }
+
+        req = requests.post(endpoint[mode.upper()] % {'host': self.hosts[0][0],
+                                                      'port': self.hosts[0][1]},
+                            data = json.dumps(theData))
+
+        err = checkErrors(req)
+        if err is None:
+            return req.json()
+        else:
+            return err
+
 
     def get_version(self):
         """Used to check OpenTSDB version.
