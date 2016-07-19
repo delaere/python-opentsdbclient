@@ -73,6 +73,17 @@ def checkArguments(frame, argTypes, valueChecks = {},
         checkArg(value, theType, noneAllowed, typeErrorMessage, valueCheck, valueErrorMessage)
     return True
 
+def process_response(response):
+    """Processes the response and raise an error if needed."""
+    err = checkErrors(response)
+    if err is not None:
+        code = err["code"]
+        message = err["message"]
+        details = err.get("details","")
+        trace = err.get("trace","")
+        raise OpenTSDBError(code, message, details, trace)
+    return response.json()
+
 class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def get_statistics(self):
@@ -80,11 +91,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         req = requests.get(utils.STATS_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]})
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+
+        return process_response(req)
 
     #TODO do the following in the base class + telnet api
     #def put_meter(self, metrics, summary=False, details=False, sync=False, sync_timeout=0):
@@ -118,7 +126,6 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             else:
                 options +="&"
             options +="sync&sync_timeout=%d"%sync_timeout
-
         # prepare the data part, and issue the request, with or without compression
         rawData = json.dumps(meters)
         if compress:
@@ -133,25 +140,14 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                                                    'port': self.hosts[0][1],
                                                    'options': options },
                                 data=rawData )
-
         #handle the response
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
-
+        return process_response(req)
 
     def get_aggregators(self):
         """Used to get the list of default aggregation functions."""
         req = requests.get(utils.AGGR_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]})
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_annotation(self, startTime, endTime=None, tsuid=None):
         """Used to get an annotation.
@@ -169,11 +165,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.get(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]},
                            data = json.dumps(params))
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def set_annotation(self, startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
         """Used to set an annotation.
@@ -195,11 +187,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.post(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                             data = json.dumps(params))
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def delete_annotation(self, startTime, endTime=None, tsuid=None):
         """Used to delete an annotation."""
@@ -213,8 +201,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.delete(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
                                                    'port': self.hosts[0][1]},
                               data = json.dumps(params))
-        err = checkErrors(req)
-        return err
+        return process_response(req)
 
     def get_configuration(self):
         """This endpoint returns information about the running configuration of the TSD. 
@@ -225,22 +212,14 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         req = requests.get(utils.CONF_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]})
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_filters(self):
         """This endpoint lists the various filters loaded by the TSD and some information about how to use them."""
 
         req = requests.get(utils.FILT_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]})
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def drop_caches(self):
         """This endpoint purges the in-memory data cached in OpenTSDB. 
@@ -248,11 +227,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         req = requests.get(utils.DCACH_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]})
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_serializers(self):
         """Used to get the list of serializer plugins loaded by the running TSD. 
@@ -260,12 +235,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         req = requests.get(utils.SERIAL_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]})
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def suggest(self, datatype, query=None, maxResults=None):
         """This endpoint provides a means of implementing an "auto-complete" call that can 
@@ -282,12 +252,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.post(utils.SUGGEST_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                            data = json.dumps(params))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def query(self, openTSDBQuery):
         """enables extracting data from the storage system in various formats determined by the serializer selected"""
@@ -305,12 +270,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.post(endpoint % {'host': self.hosts[0][0],
                                         'port': self.hosts[0][1]},
                             data = json.dumps(params))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def search(self, mode, query="", metric="*", tags={}, limit=25, startindex=0, useMeta=False):
         """This endpoint provides a basic means of searching OpenTSDB meta data. 
@@ -337,17 +297,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             theData = { "metric":metric, "tags": tagslist,  "useMeta": useMeta }
         else:
             theData = { "query":query, "limit":limit, "startindex":startindex }
-
         req = requests.post(endpoint[mode.upper()] % {'host': self.hosts[0][0],
                                                       'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
-
+        return process_response(req)
 
     def get_version(self):
         """Used to check OpenTSDB version.
@@ -358,41 +311,25 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         req = requests.get(utils.VERSION_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]})
-        return req
+        return process_response(req)
 
     def assign_uid(self, metric_list=None, tagk_list=None, tagv_list=None):
         """This endpoint enables assigning UIDs to new metrics, tag names and tag values. 
            Multiple types and names can be provided in a single call and the API will process each name individually, 
            reporting which names were assigned UIDs successfully, along with the UID assigned, and which failed due to invalid characters or had already been assigned."""
 
-        checkArguments(inspect.currentframe(), {'metric_list':list, 'tagk_list':list, 'tagv_list':list})
+        checkArguments(inspect.currentframe(), {'metric_list':list, 'tagk_list':list, 'tagv_list':list},
+                                               {'metric_list':lambda l: all(map(lambda x:isinstance(x,basestring),l)),
+                                                'tagk_list':lambda l: all(map(lambda x:isinstance(x,basestring),l)),
+                                                'tagv_list':lambda l: all(map(lambda x:isinstance(x,basestring),l))})
 
         if metric_list is None and tagk_list is None and tagv_list is None: 
             return None
-
-        for metric in metric_list:
-            if not isinstance(metric, basestring):
-                raise TypeError("assign_uid arg type mismatch.")
-        
-        for tagk in tagk_list: 
-            if not isinstance(tagk, basestring):
-                raise TypeError("assign_uid arg type mismatch.")
-
-        for tagv in tagv_list: 
-            if not isinstance(tagv, basestring):
-                raise TypeError("assign_uid arg type mismatch.")
-
         theData = { "metric":metric_list, "tagk":tagk_list, "tagv":tagv_list }
-
         req = requests.post(utils.ASSIGNUID_TEMPL % {'host': self.hosts[0][0],
                                                      'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_tsmeta(self, tsuid):
         """This endpoint enables searching timeseries meta data information, that is meta data associated with 
@@ -404,12 +341,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.get(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                            data = json.dumps({ "tsuid": tsuid }))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def set_tsmeta(self, tsuid, description=None, displayName=None, notes=None, custom=None, 
                                 units=None, dataType=None, retention=None, maximum=None, minimum=None):
@@ -426,17 +358,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         theData = { "tsuid":tsuid, "description":description, "displayName":displayName, "notes":notes, 
                     "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-
         req = requests.post(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
-
+        return process_response(req)
 
     def delete_tsmeta(self, tsuid):
         """This endpoint enables deleting timeseries meta data information.
@@ -448,9 +373,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.delete(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                     'port': self.hosts[0][1]},
                               data = json.dumps({ "tsuid": tsuid }))
-
-        err = checkErrors(req)
-        return err
+        return process_response(req)
 
     def define_retention(self, tsuid, retention_days):
         """Set retention days for the defined by ID timeseries.
@@ -475,17 +398,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
 
         theData = {"uid":uid, "type":uidtype}
-
         req = requests.get(utils.UIDMETA_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]},
                            data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
-
+        return process_response(req)
 
     def set_uidmeta(self, uid, uidtype, description=None, displayName=None, notes=None, custom=None):
         """This endpoint enables editing  UID meta data information, that is meta data associated with metrics, 
@@ -497,16 +413,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         theData = { "uid":uid, "description":description, "displayName":displayName, "notes":notes, "custom":custom}
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-
         req = requests.post(utils.UIDMETA_TEMPL % {'host': self.hosts[0][0],
                                                    'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def delete_uidmeta(self, uid, uidtype):
         """This endpoint enables deleting UID meta data information, that is meta data associated with metrics, tag names and tag values."""
@@ -515,13 +425,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
 
         theData = {"uid":uid, "type":uidtype}
-
         req = requests.delete(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                     'port': self.hosts[0][1]},
                               data = json.dumps(theData))
-
-        err = checkErrors(req)
-        return err
+        return process_response(req)
 
     def create_tree(self, name, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
         """Trees are meta data used to organize time series in a heirarchical structure for browsing similar to a typical file system. 
@@ -535,17 +442,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         theData = {"name":name, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        
         req = requests.post(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
-
+        return process_response(req)
 
     def delete_tree(self, treeId, definition=False):
         """Using this method will remove only collisions, not matched entries and branches for the given tree from storage. 
@@ -557,13 +457,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         checkArguments(inspect.currentframe(), {'treeId':int, 'definition':bool})
 
         theData = { "treeId":treeId, "definition":definition }
-        
         req = requests.delete(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]},
                               data = json.dumps(theData))
-
-        err = checkErrors(req)
-        return err
+        return process_response(req)
 
     def edit_tree(self, treeId, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
         """Using this method, you can edit most of the fields for an existing tree. A successful request will return the modified tree object."""
@@ -572,16 +469,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        
         req = requests.post(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_tree(self, treeId=None):
         """This returns the tree with the given id."""
@@ -591,12 +482,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         req = requests.get(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]},
                            data = json.dumps({"treeId":treeId}))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_tree_branch(self, treeId=None, branch=None):
         """A branch represents a level in the tree heirarchy and contains information about child branches and/or leaves.
@@ -613,16 +499,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
             theData = { "treeId":treeId }
         else:
             raise ValueError("get_tree_branch requires at least one of treeId or branch.")
-
         req = requests.get(utils.TREEBRANCH_TEMPL % {'host': self.hosts[0][0],
                                                      'port': self.hosts[0][1]},
                            data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_tree_collisions(self, treeId, tsuids):
         """When processing a TSMeta, if the resulting leaf would overwrite an existing leaf with a different TSUID, a collision will be recorded. 
@@ -641,16 +521,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         if len(tsuids)>0:
             thetsuids = thetsuids[:-1]
         theData["tsuids"]=thetsuids
-
         req = requests.get(utils.TREECOLL_TEMPL % {'host': self.hosts[0][0],
                                                    'port': self.hosts[0][1]},
                            data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_tree_notmatched(self, treeId, tsuids):
         """When processing a TSMeta, if the tree has strictMatch enabled and the meta fails to match on a rule in any level of the set, a not matched entry will be recorded. 
@@ -669,16 +543,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         if len(tsuids)>0:
             thetsuids = thetsuids[:-1]
         theData["tsuids"]=thetsuids
-
         req = requests.get(utils.TREEMATCH_TEMPL % {'host': self.hosts[0][0],
                                                     'port': self.hosts[0][1]},
                            data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
         
     def test_tree(self, treeId, tsuids):
         """For debugging a rule set, the test endpoint can be used to run a TSMeta object through a tree's rules and determine where 
@@ -694,16 +562,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         if len(tsuids)>0:
             thetsuids = thetsuids[:-1]
         theData["tsuids"]=thetsuids
-
         req = requests.get(utils.TREETEST_TEMPL % {'host': self.hosts[0][0],
                                                    'port': self.hosts[0][1]},
                            data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def get_tree_rule(self, treeId, level=0, order=0):
         """Access to an individual tree rule. 
@@ -712,16 +574,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int})
 
         theData = { "treeId":treeId, "level":level, "order":order }
-
         req = requests.get(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
                                                    'port': self.hosts[0][1]},
                            data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def set_tree_rule(self, treeId, level=0, order=0, ruleType=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
         """allows for easy modification of a single rule in the set.
@@ -738,16 +594,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx, "type":ruleType, "description":description, 
                     "notes":notes, "field":field, "customField":customField, "regex":regex, "separator":separator, "displayFormat":displayFormat }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-
         req = requests.post(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
                                                     'port': self.hosts[0][1]},
                             data = json.dumps(theData))
-
-        err = checkErrors(req)
-        if err is None:
-            return req.json()
-        else:
-            return err
+        return process_response(req)
 
     def delete_tree_rule(self, treeId, level=0, order=0, deleteAll=False):
         """Using the DELETE method will remove a rule from a tree.
@@ -757,42 +607,13 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         if deleteAll:
             theData = { "treeId":treeId }
-        
             req = requests.delete(utils.TREERULES_TEMPL % {'host': self.hosts[0][0],
                                                            'port': self.hosts[0][1]},
                                   data = json.dumps(theData))
         else:
             theData = { "treeId":treeId, "level":level, "order":order }
-        
             req = requests.delete(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
                                                           'port': self.hosts[0][1]},
                                   data = json.dumps(theData))
+	return process_response(req)
 
-        err = checkErrors(req)
-        return err
-
-
-#    def _make_query(self, query, verb):
-#        meth = getattr(requests, verb.lower(), None)
-#        if meth is None:
-#            pass
-#        req = meth(utils.QUERY_TEMPL % {'host': self.hosts[0][0],
-#                                        'port': self.hosts[0][1],
-#                                        'query': query})
-#        return req
-#
-#    def get_query(self, query):
-#        return self._make_query(query, 'get')
-
-#TODO: merge with the check for errors? or is the error function useless in the end?
-    @staticmethod
-    def process_response(resp):
-        try:
-            res = json.loads(resp.text)
-        except Exception:
-            raise opentsdbclient.OpenTSDBError(resp.text)
-
-        if 'error' in res:
-            raise opentsdbclient.OpenTSDBError(res['error'])
-
-        return res

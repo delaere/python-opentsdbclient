@@ -18,33 +18,40 @@ otsdbErrors = {
 503:"A temporary overload has occurred. Check with other users/applications that are interacting with OpenTSDB and determine if you need to reduce requests or scale your system.",
 }
 
-#If an error occurs, the API will return a response with an error object formatted per the requested response type. Error object fields include:
-
 #Field 	Name	Data Type	Always Present	Description
 #code		Integer		Yes		The HTTP status code
 #message	String		Yes		A descriptive error message about what went wrong
 #details	String		Optional	Details about the error, often a stack trace
 #trace		String		Optional	A JAVA stack trace describing the location where the error was generated.
 
+class OpenTSDBError(Exception):
+    def __init__(self, code, message, details, trace):
+        self.code = code
+        self.description = otsdbErrors[code]
+        self.message = message
+        self.details = details
+        self.trace = trace
+
+    def __str__(self):
+        return "Error %d: %s"%(self.code, self.message)
 
 def checkErrors(response, throw=False):
+    """Check for errors and either raise an error via the requests module or returns a dict representation of the error."""
     if response.status_code<400:
         return None
     else:
-        content = response.json()
-        try:
-            error = content["error"]
-        except KeyError:
-            if throw:
-                response.raise_for_status()
-            return {
+        if throw:
+            response.raise_for_status()
+        else:
+            content = response.json()
+            try:
+                error = content["error"]
+            except KeyError:
+                return {
                             "code": response.status_code, 
                             "message": otsdbErrors[response.status_code],
                             "details": "Error message not received."
-
-                    }
-        else:
-            if throw: 
-                response.raise_for_status()
-            return error
+                       }
+            else:
+                return error
 
