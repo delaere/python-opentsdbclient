@@ -25,7 +25,3 @@ Supported API Endpoints:
 /api/version
 
 
-The ultimate aim of this client is to support the following features:
-- all endpoints
-- compression
-- proper error handling

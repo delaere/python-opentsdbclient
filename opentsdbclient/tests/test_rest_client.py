@@ -18,7 +18,7 @@ import json
 import mock
 import requests
 
-from opentsdbclient.rest import client
+from opentsdbclient import client
 from opentsdbclient import tests
 
 
