@@ -26,7 +26,7 @@ class metric:
         if (not isinstance(self.metric,basestring) or
             not isinstance(self.timestamp, int) or
             (not isinstance(self.value,basestring) and not isinstance(self.value, (int, float))) or
-            not isinstance(self.tags, dict):
+            not isinstance(self.tags, dict)):
                 raise TypeError("metric type mismatch.")
         if len(self.tags)<1:
                 raise ValueError("at least one metric tag must be supplied")

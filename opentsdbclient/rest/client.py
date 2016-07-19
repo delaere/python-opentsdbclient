@@ -14,8 +14,9 @@
 # under the License.
 
 import json
-
+import zlib
 import requests
+import inspect
 
 from opentsdbmetric import metric as opentsdbmetric
 import opentsdbquery
@@ -25,16 +26,58 @@ from opentsdbclient import base
 from opentsdbclient.rest import utils
 from opentsdberrors import checkErrors
 
-#TODO: add support for compression of the json content, at least in put.
 
 #TODO: make it more OO:
 # objects for tree and rules
 # objects for annotations, tsmeta, uidmeta
 
+def checkArg(value, thetype, NoneAllowed=False, typeErrorMessage="Type mismatch", valueCheck=None, valueErrorMessage="Value error"):
+    """check a single argument."""
+
+    if value is None:
+        if not NoneAllowed:
+            raise ValueError(valueErrorMessage)
+        else:
+            return True
+    else:
+        if not isinstance(value,thetype):
+            raise TypeError(typeErrorMessage)
+        if valueCheck is not None:
+            if not valueCheck(value):
+                raise ValueError(valueErrorMessage)
+            else:
+                return True
+    return True
+
+def checkArguments(frame, argTypes, valueChecks = {}, 
+                   typeErrorMessageTemplate="%(functionName)s::%(argName)s: Type mismatch", 
+                   valueErrorMessageTemplate = "%(functionName)s::%(argName)s: got %(argValue)s" ):
+    """Checks the arguments of the function.
+        - frame must come from inspect.currentframe() within the function
+        - argTypes is a dict relating args to their expected type
+        - valueChecks is a dict relating args to functions with additional constrains (like being strictly positive) 
+        - typeErrorMessageTemplate and valueErrorMessageTemplate are templates for exception messages. It may use functionName, argName and argValue for substitution."""
+
+    args, _, _, values = inspect.getargvalues(frame)
+    functionName = inspect.getframeinfo(frame)[2]
+    _, _, _, defaults  = inspect.getargspec(getattr(values['self'],functionName))
+    if defaults is not None:
+        defaults = dict(zip(args[::-1],defaults[::-1]))
+    for arg in args[1:]:
+        value = values[arg]
+        theType = argTypes[arg]
+        valueCheck = valueChecks.get(arg,None)
+        noneAllowed = (defaults.get(arg,0) is None)
+        typeErrorMessage=typeErrorMessageTemplate%{'functionName':functionName, 'argName':arg, 'argValue':value}
+        valueErrorMessage=valueErrorMessageTemplate%{'functionName':functionName, 'argName':arg, 'argValue':value}
+        checkArg(value, theType, noneAllowed, typeErrorMessage, valueCheck, valueErrorMessage)
+    return True
+
 class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def get_statistics(self):
         """Get info about what metrics are registered and with what stats."""
+
         req = requests.get(utils.STATS_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]})
         err = checkErrors(req)
@@ -50,7 +93,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
     #        raise TypeError("Please use opentsdbmetric to define metrics.")
     #    else:
     #        m.check()
-    def put_meter(self, meters, summary=False, details=False, sync=False, sync_timeout=0):
+    def put_meter(self, meters, summary=False, details=False, sync=False, sync_timeout=0, compress=False):
         """Post new meter(s) to the database.
 
         Meters is a vector dictionnaries.
@@ -64,6 +107,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                   supplied.
         """
 
+        # prepare options. Requests doesn't handle empty options by itself.
         if details: options = "?details"
         elif summary: options = "?summary"
         else: options = ""
@@ -75,17 +119,28 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                 options +="&"
             options +="sync&sync_timeout=%d"%sync_timeout
 
-        req = requests.post(utils.PUT_TEMPL %
-                            {'host': self.hosts[0][0],
-                             'port': self.hosts[0][1],
-                             'options': options },
-                            data=json.dumps(meters)
-                            )
+        # prepare the data part, and issue the request, with or without compression
+        rawData = json.dumps(meters)
+        if compress:
+            compressedData = zlib.compress(rawData)
+            req = requests.post(utils.PUT_TEMPL % {'host': self.hosts[0][0],
+                                                   'port': self.hosts[0][1],
+                                                   'options': options},
+                                data=compressedData,
+                                headers={' Content-Encoding':'gzip'} )
+        else:
+            req = requests.post(utils.PUT_TEMPL % {'host': self.hosts[0][0],
+                                                   'port': self.hosts[0][1],
+                                                   'options': options },
+                                data=rawData )
+
+        #handle the response
         err = checkErrors(req)
         if err is None:
             return req.json()
         else:
             return err
+
 
     def get_aggregators(self):
         """Used to get the list of default aggregation functions."""
@@ -106,6 +161,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            meaning it's associated with a specific tsuid. 
            If the tsuid is not supplied or has an empty value, the annotation is considered to be a global note."""
 
+        checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring}, 
+                                               {'startTime':lambda t:t>0, 'endTime':lambda t:t>0,'tsuid':lambda x: int(x,16)})
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
@@ -126,12 +183,15 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            Annotations are not meant to be used as a tracking or event based system, 
            rather they are useful for providing links to such systems by displaying a notice on graphs or via API query calls."""
 
+        checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring, 
+                                                'description': basestring, 'notes':basestring, 'custom':dict}, 
+                                               {'startTime':lambda t:t>0, 'endTime':lambda t:t>0, 'tsuid':lambda x: int(x,16)} )
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
         if description is not None: params["description"]=description
         if notes is not None: params["notes"]=notes
-        if custom is not None: params[custom]=custom
+        if custom is not None: params["custom"]=custom
         req = requests.post(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                             data = json.dumps(params))
@@ -143,12 +203,16 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def delete_annotation(self, startTime, endTime=None, tsuid=None):
         """Used to delete an annotation."""
+
+        checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring}, 
+                                               {'startTime':lambda t:t>0, 'endTime':lambda t:t>0,'tsuid':lambda x: int(x,16)})
+
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
         req = requests.delete(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
-                                                'port': self.hosts[0][1]},
-                           data = json.dumps(params))
+                                                   'port': self.hosts[0][1]},
+                              data = json.dumps(params))
         err = checkErrors(req)
         return err
 
@@ -158,6 +222,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            It is read only and cannot be used to set configuration options.
            This endpoint does not require any parameters via query string or body.
            The response is a hash map of configuration properties and values."""
+
         req = requests.get(utils.CONF_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]})
         err = checkErrors(req)
@@ -168,6 +233,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def get_filters(self):
         """This endpoint lists the various filters loaded by the TSD and some information about how to use them."""
+
         req = requests.get(utils.FILT_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]})
         err = checkErrors(req)
@@ -176,10 +242,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         else:
             return err
 
-
     def drop_caches(self):
         """This endpoint purges the in-memory data cached in OpenTSDB. 
         This includes all UID to name and name to UID maps for metrics, tag names and tag values."""
+
         req = requests.get(utils.DCACH_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]})
         err = checkErrors(req)
@@ -191,6 +257,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
     def get_serializers(self):
         """Used to get the list of serializer plugins loaded by the running TSD. 
         Information given includes the name, implemented methods, content types and methods.."""
+
         req = requests.get(utils.SERIAL_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]})
 
@@ -205,6 +272,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            be accessed repeatedly as a user types a request in a GUI. 
            It does not offer full text searching or wildcards, rather it simply matches 
            the entire string passed in the query on the first characters of the stored data. """
+
+        checkArguments(inspect.currentframe(), {'datatype':basestring, 'query':basestring, 'maxResults':int}, 
+                                               {'maxResults':lambda m:m>0} )
+
         params = { "type":datatype }
         if query is not None: params["q"]=query
         if maxResults is not None and maxResults>0: params["max"]=maxResults
@@ -220,6 +291,7 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def query(self, openTSDBQuery):
         """enables extracting data from the storage system in various formats determined by the serializer selected"""
+
         openTSDBQuery.check()
         params = openTSDBQuery.getMap()
         if isinstance(openTSDBQuery,opentsdbquery.OpenTSDBQuery):
@@ -254,7 +326,9 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
                      "UIDMETA":"/api/search/uidmeta",
                      "ANNOTATION":"/api/search/annotation",
                      "LOOKUP":"/api/search/lookup" }
-        assert mode.upper() in endpoint
+
+        checkArguments(inspect.currentframe(), {'mode':basestring, 'query':basestring, 'metric':basestring, 'tags':dict, 'limit':int, 'startindex':int, 'useMeta':bool}, 
+                                               {'limit':lambda x:x>0, 'startindex':lambda x:x>0, 'mode':lambda m:m.upper in endpoint} )
 
         if mode.upper() is "LOOKUP":
             tagslist =[]
@@ -280,8 +354,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
         That might be needed in case of unknown bugs - this code is written
         only for the 2.x REST API version, so some of the failures might refer
-        to the wrong OpenTSDB version installed.
-        """
+        to the wrong OpenTSDB version installed."""
+
         req = requests.get(utils.VERSION_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]})
         return req
@@ -290,6 +364,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         """This endpoint enables assigning UIDs to new metrics, tag names and tag values. 
            Multiple types and names can be provided in a single call and the API will process each name individually, 
            reporting which names were assigned UIDs successfully, along with the UID assigned, and which failed due to invalid characters or had already been assigned."""
+
+        checkArguments(inspect.currentframe(), {'metric_list':list, 'tagk_list':list, 'tagv_list':list})
 
         if metric_list is None and tagk_list is None and tagv_list is None: 
             return None
@@ -323,6 +399,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            a specific timeseries associated with a metric and one or more tag name/value pairs. 
            Some fields are set by the TSD but others can be set by the user."""
 
+        checkArguments(inspect.currentframe(), {'tsuid':basestring}, {'tsuid':lambda x: int(x,16)})
+
         req = requests.get(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                            data = json.dumps({ "tsuid": tsuid }))
@@ -339,45 +417,15 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            a specific timeseries associated with a metric and one or more tag name/value pairs. 
            Some fields are set by the TSD but others can be set by the user. 
            Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
-        if not isinstance(tsuid,basestring):
-            raise TypeError("set_tsmeta arg type mismatch")
-        theData = { "tsuid":tsuid }
-        if description is not None: 
-            if not isinstance(description, basestring):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["description"]=description
-        if displayName is not None: 
-            if not isinstance(displayName, basestring):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["displayName"]=displayName
-        if notes is not None: 
-            if not isinstance(notes, basestring):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["notes"]=notes
-        if custom is not None:
-            if not isinstance(custom, dict):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["custom"]=custom
-        if units is not None: 
-            if not isinstance(units, basestring):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["units"]=units
-        if dataType is not None: 
-            if not isinstance(dataType, basestring):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["dataType"]=dataType
-        if retention is not Note: 
-            if not isinstance(retention, int) or retention<0:
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["retention"]=retention
-        if maximum is not None: 
-            if not isinstance(maximum, float):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["max"]=maximum
-        if minimum is not None: 
-            if not isinstance(minimum, float):
-                raise TypeError("set_tsmeta arg type mismatch")
-            theData["min"]=minimum
+
+        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'description':basestring, 'displayName':basestring, 
+                                                'notes':basestring, 'custom':dict, 'units':basestring, 'dataType':basestring, 
+                                                'retention':int, 'maximum':float, 'minimum':float}, 
+                                               {'tsuid':lambda x: int(x,16), 'retention': lambda x:x>=0} )
+
+        theData = { "tsuid":tsuid, "description":description, "displayName":displayName, "notes":notes, 
+                    "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
+        theData = { k:v for k,v in theData.iteritems() if v is not None }
 
         req = requests.post(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                   'port': self.hosts[0][1]},
@@ -394,6 +442,9 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         """This endpoint enables deleting timeseries meta data information.
            Please note that deleting a meta data entry will not delete the data points stored for the timeseries. 
            Neither will it remove the UID assignments or associated UID meta objects."""
+
+        checkArguments(inspect.currentframe(), {'tsuid':basestring}, {'tsuid':lambda x: int(x,16)})
+
         req = requests.delete(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
                                                     'port': self.hosts[0][1]},
                               data = json.dumps({ "tsuid": tsuid }))
@@ -412,14 +463,17 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         :param tsuid: hexadecimal representation of the timeseries UID
         :param retention_days: number of days of data points to retain for the
                                given timeseries. When set to 0, the default,
-                               data is retained indefinitely.
-        """
+                               data is retained indefinitely."""
+
         return self.set_tsmeta(tsuid, retention=retention_days)
 
     def get_uidmeta(self, uid, uidtype):
         """This endpoint enables getting UID meta data information, that is meta data associated with metrics, 
            tag names and tag values. Some fields are set by the TSD but others can be set by the user. """
-        assert uidtype in ["metric", "tagk", "tagv"]
+
+        checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring}, 
+                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
+
         theData = {"uid":uid, "type":uidtype}
 
         req = requests.get(utils.UIDMETA_TEMPL % {'host': self.hosts[0][0],
@@ -437,26 +491,12 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
         """This endpoint enables editing  UID meta data information, that is meta data associated with metrics, 
            tag names and tag values. Some fields are set by the TSD but others can be set by the user.
            Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
-        assert uidtype in ["metric", "tagk", "tagv"]
-        if not isinstance(uid,basestring):
-            raise TypeError("set_uidmeta arg type mismatch")
-        theData = { "uid":uid }
-        if description is not None: 
-            if not isinstance(description, basestring):
-                raise TypeError("set_uidmeta arg type mismatch")
-            theData["description"]=description
-        if displayName is not None: 
-            if not isinstance(displayName, basestring):
-                raise TypeError("set_uidmeta arg type mismatch")
-            theData["displayName"]=displayName
-        if notes is not None: 
-            if not isinstance(notes, basestring):
-                raise TypeError("set_uidmeta arg type mismatch")
-            theData["notes"]=notes
-        if custom is not None:
-            if not isinstance(custom, dict):
-                raise TypeError("set_uidmeta arg type mismatch")
-            theData["custom"]=custom
+
+        checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring, 'description':basestring, 'displayName':basestring, 'notes':basestring, 'custom':dict}, 
+                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
+
+        theData = { "uid":uid, "description":description, "displayName":displayName, "notes":notes, "custom":custom}
+        theData = { k:v for k,v in theData.iteritems() if v is not None }
 
         req = requests.post(utils.UIDMETA_TEMPL % {'host': self.hosts[0][0],
                                                    'port': self.hosts[0][1]},
@@ -470,7 +510,10 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def delete_uidmeta(self, uid, uidtype):
         """This endpoint enables deleting UID meta data information, that is meta data associated with metrics, tag names and tag values."""
-        assert uidtype in ["metric", "tagk", "tagv"]
+
+        checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring}, 
+                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
+
         theData = {"uid":uid, "type":uidtype}
 
         req = requests.delete(utils.TSMETA_TEMPL % {'host': self.hosts[0][0],
@@ -487,17 +530,11 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            When creating a tree it will have the enabled field set to false by default. 
            After creating a tree you should add rules then use the tree/test endpoint with a few TSUIDs to make sure the resulting tree will be what you expected. 
            After you have verified the results, you can set the enabled field to true and new TSMeta objects or a tree synchronization will start to populate branches."""
-        if not isinstance(name, basestring):
-            raise TypeError("create_tree arg type mismatch.")
-        theData = {"name":name, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures }
-        if description is not None :
-            if not isinstance(description, basestring):
-                raise TypeError("create_tree arg type mismatch.")
-            theData["description"]=description
-        if notes is not None:
-            if not isinstance(notes, basestring):
-                raise TypeError("create_tree arg type mismatch.")
-            theData["notes"]=notes
+
+        checkArguments(inspect.currentframe(), {'name':basestring, 'description':basestring, 'notes':basestring, 'strictMatch':bool, 'enabled':bool, 'storeFailures':bool})
+
+        theData = {"name":name, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
+        theData = { k:v for k,v in theData.iteritems() if v is not None }
         
         req = requests.post(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]},
@@ -516,6 +553,9 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            If the tree was not found, it will return a 404. 
            If you want to delete the tree definition itself, you can supply the defintion flag in the query string 
            with a value of true and the tree and rule definitions will be removed as well."""
+
+        checkArguments(inspect.currentframe(), {'treeId':int, 'definition':bool})
+
         theData = { "treeId":treeId, "definition":definition }
         
         req = requests.delete(utils.TREE_TEMPL % {'host': self.hosts[0][0],
@@ -527,17 +567,11 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def edit_tree(self, treeId, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
         """Using this method, you can edit most of the fields for an existing tree. A successful request will return the modified tree object."""
-        if not isinstance(treeId, int):
-            raise TypeError("create_tree arg type mismatch.")
-        theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures }
-        if description is not None :
-            if not isinstance(description, basestring):
-                raise TypeError("create_tree arg type mismatch.")
-            theData["description"]=description
-        if notes is not None:
-            if not isinstance(notes, basestring):
-                raise TypeError("create_tree arg type mismatch.")
-            theData["notes"]=notes
+
+        checkArguments(inspect.currentframe(), {'treeId':int, 'description':basestring, 'notes':basestring, strictMatch:bool, 'enabled':bool, 'storeFailures':bool})
+
+        theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
+        theData = { k:v for k,v in theData.iteritems() if v is not None }
         
         req = requests.post(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                 'port': self.hosts[0][1]},
@@ -551,6 +585,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
 
     def get_tree(self, treeId=None):
         """This returns the tree with the given id."""
+
+        checkArguments(inspect.currentframe(), {'treeId':int})
 
         req = requests.get(utils.TREE_TEMPL % {'host': self.hosts[0][0],
                                                'port': self.hosts[0][1]},
@@ -568,6 +604,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            as well as the IDs of each parent the branch stems from. 
            All branches stem from the ROOT branch of a tree and this is usually the starting place when browsing. 
            To fetch the ROOT just call this endpoingt with a valid treeId. The root branch ID is also a 4 character encoding of the tree ID."""
+
+        checkArguments(inspect.currentframe(), {'treeId':int, 'branch':basestring},{'branch':lambda x:int(x,16)})
 
         if branch is not None:
             theData = { "branch":branch }
@@ -593,6 +631,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            Calling this endpoint without a list of one or more TSUIDs will return all collisions in the tree. 
            If you have a large number of timeseries in your system, the response can potentially be very large. Thus it is best to use this endpoint with specific TSUIDs.
            If storeFailures is diabled for the tree, this endpoint will not return any data. Collisions will still appear in the TSD's logs."""
+
+        checkArguments(inspect.currentframe(), {'treeId':int, 'tsuids':list})
 
         theData = { "treeId":treeId }
         thetsuids = ""
@@ -620,6 +660,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            If you have a large number of timeseries in your system, the response can potentially be very large. Thus it is best to use this endpoint with specific TSUIDs.
            If storeFailures is diabled for the tree, this endpoint will not return any data. Not Matched entries will still appear in the TSD's logs."""
            
+        checkArguments(inspect.currentframe(), {'treeId':int, 'tsuids':list})
+
         theData = { "treeId":treeId }
         thetsuids = ""
         for tsuid in tsuids:
@@ -643,6 +685,8 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            in the heirarchy the leaf would appear. Or find out why a timeseries failed to match on a rule set or collided with an existing timeseries. 
            The only method supported is GET and no changes will be made to the actual tree in storage when using this endpoint."""
 
+        checkArguments(inspect.currentframe(), {'treeId':int, 'tsuids':list})
+
         theData = { "treeId":treeId }
         thetsuids = ""
         for tsuid in tsuids:
@@ -664,6 +708,9 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
     def get_tree_rule(self, treeId, level=0, order=0):
         """Access to an individual tree rule. 
            Rules are addressed by their tree ID, level and order and all requests require these three parameters."""
+
+        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int})
+
         theData = { "treeId":treeId, "level":level, "order":order }
 
         req = requests.get(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
@@ -683,39 +730,14 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
            A successful request will return the modified rule object. 
            Note that if a rule exists at the given level and order, any changes will be merged with or overwrite the existing rule."""
 
-        theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx }
-        if ruleType is not None:
-            if ruleType not in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"]:
-                raise ValueError("unknown rule type")
-            theData["type"]=ruleType
-        if description is not None:
-            if not isinstance(description, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["description"]=description
-        if notes is not None:
-            if not isinstance(notes, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["notes"]=notes
-        if field is not None:
-            if not isinstance(field, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["field"]=field
-        if customField is not None:
-            if not isinstance(customField, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["customField"]=customField
-        if regex is not None:
-            if not isinstance(regex, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["regex"]=regex
-        if separator is not None:
-            if not isinstance(separator, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["separator"]=separator
-        if displayFormat is not None:
-            if not isinstance(displayFormat, basestring):
-                raise TypeError("set_tree_rule arg type mismatch")
-            theData["displayFormat"]=displayFormat
+        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int, 'ruleType':basestring, 'description':basestring, 
+                                                'notes':basestring, 'field':basestring, 'customField':basestring, 'regex':basestring, 
+                                                'separator':basestring, 'regexGroupIdx':int, 'displayFormat':basestring},
+                                               {'ruleType':lambda x:x in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"], 'regexGroupIdx':lambda x: x>=0})
+
+        theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx, "type":ruleType, "description":description, 
+                    "notes":notes, "field":field, "customField":customField, "regex":regex, "separator":separator, "displayFormat":displayFormat }
+        theData = { k:v for k,v in theData.iteritems() if v is not None }
 
         req = requests.post(utils.TREERULE_TEMPL % {'host': self.hosts[0][0],
                                                     'port': self.hosts[0][1]},
@@ -730,6 +752,9 @@ class RESTOpenTSDBClient(base.BaseOpenTSDBClient):
     def delete_tree_rule(self, treeId, level=0, order=0, deleteAll=False):
         """Using the DELETE method will remove a rule from a tree.
            If deleteAll is true, all rules from the tree will be deleted."""
+
+        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int, 'deleteAll':bool})
+
         if deleteAll:
             theData = { "treeId":treeId }
         
