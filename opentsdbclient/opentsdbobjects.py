@@ -38,6 +38,15 @@ class OpenTSDBAnnotation:
     def __str__(self):
         return self.getMap().__str__()
 
+    def loadFrom(self,client):
+        self.__init__(**client.get_annotation(self.startTime, self.endTime, self.tsuid).getMap())
+
+    def saveTo(self,client):
+        client.set_annotation(**self.getMap())
+
+    def delete(self,client):
+        client.delete_annotation(self.startTime, self.endTime, self.tsuid)
+
 
 class OpenTSDBTimeSeries:
     """A time series is made of a metric and a set of (at least one) tags."""
@@ -77,6 +86,16 @@ class OpenTSDBTimeSeries:
 
     def __str__(self):
         return self.getMap().__str__()
+
+    def assign_uid(self,client):
+        try:
+            client.assign_uid([self.metric], list(self.tags.keys()), list(self.tags.values()))
+        except OpenTSDBError as e:
+            if e.code is 400:
+                pass #ignore... this is expected
+                print e.message, e.details # for debug
+            else:
+                raise
 
 
 class OpenTSDBMeasurement:
@@ -120,6 +139,8 @@ class OpenTSDBMeasurement:
     def __str__(self):
         return self.getMap().__str__()
 
+    def saveTo(self,client):
+        return client.put_measurements([self])
 
 class OpenTSDBTreeDefinition:
     def __init__(self,name=None, description=None, notes=None, rules=None, created=None, treeId=None, strictMatch=False, storeFailures=False, enabled=False):
@@ -171,6 +192,23 @@ class OpenTSDBTreeDefinition:
     def __str__(self):
         return self.getMap().__str__()
 
+    def create(self,client):
+        if self.name is None:
+            raise ValueError("Tree name should be defined to allow its creation. Is None.\n"+str(self))
+        if self.created is not None or self.treeId is not None: 
+            raise ValueError("Tree seems to be created already.\n"+str(self))
+        myself = self.getMap()
+        data = { key:myself.get(key,None) for key in ['name','description','notes','strictMatch','enabled','storeFailures'] }
+        client.create_tree(**data)
+
+    def saveTo(self,client):
+        client.edit_tree(self.treeId, self.description, self.notes, self.strictMatch, self.enabled, self.storeFailures)
+
+    def delete(self,client):
+        client.delete_tree(self.treeId,True)
+
+
+
 class OpenTSDBRule:
 
     def __init__(self, treeId, level=0, order=0, ruleType=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
@@ -214,8 +252,13 @@ class OpenTSDBRule:
     def __str__(self):
         return self.getMap().__str__()
 
-#TODO
-#these objects are for more advanced use.
+    def saveTo(self,client):
+        client.set_tree_rule(**self.getMap())
+
+    def delete(self,client):
+        client.delete_tree_rule(self.treeId, self.level, self.order)
+
+#TODO: these objects are for more advanced use.
 #not really needed by the client, but would ease the navigation.
 #I think of instantiating the tree from the treeId + client, and let it do the discovery itelf.
 #It would somehow be the top-level object.
