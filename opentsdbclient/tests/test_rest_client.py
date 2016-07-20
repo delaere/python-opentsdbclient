@@ -22,6 +22,14 @@ from opentsdbclient import client
 from opentsdbclient import tests
 
 
+#TODO write tests for the new client and for the objects independently.
+# for the client, the concept below is ~ok: it tests the client and not the server 
+# also, it doesn't require a running instance.
+# the drawback is that it doesn't test the response handling
+# so, a dedicated test is needed for that + tests of classes (see above)
+# finally, it doesn't test that the understanding of the query is correct.
+
+
 class RESTClientTest(tests.BaseTestCase):
     def setUp(self):
         super(RESTClientTest, self).setUp()

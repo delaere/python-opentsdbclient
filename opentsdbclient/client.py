@@ -18,15 +18,12 @@ import zlib
 import requests
 import inspect
 
-from opentsdbmetric import metric as opentsdbmetric
 import opentsdbquery
 import utils
 from opentsdberrors import checkErrors
 
 
-#TODO: make it more OO:
-# objects for tree and rules
-# objects for annotations, tsmeta, uidmeta
+#TODO: use the objects in the various methods, either as input or output
 
 def checkArg(value, thetype, NoneAllowed=False, typeErrorMessage="Type mismatch", valueCheck=None, valueErrorMessage="Value error"):
     """check a single argument."""
@@ -91,7 +88,6 @@ class RESTOpenTSDBClient:
 
         return process_response(req)
 
-    #def put_meter(self, metrics, summary=False, details=False, sync=False, sync_timeout=0, compress=False):
     def put_meter(self, meters, summary=False, details=False, sync=False, sync_timeout=0, compress=False):
         """Post new meter(s) to the database.
 
@@ -117,13 +113,6 @@ class RESTOpenTSDBClient:
             else:
                 options +="&"
             options +="sync&sync_timeout=%d"%sync_timeout
-        # prepare the data part, and issue the request, with or without compression
-        #TODO: build from metrics
-        #for m in metrics:
-        #    if not isinstance(m,opentsdbmetric):
-        #        raise TypeError("Please use opentsdbmetric to define metrics.")
-        #    else:
-        #        m.check()
         rawData = json.dumps(meters)
         if compress:
             compressedData = zlib.compress(rawData)
@@ -175,12 +164,8 @@ class RESTOpenTSDBClient:
         checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring, 
                                                 'description': basestring, 'notes':basestring, 'custom':dict}, 
                                                {'startTime':lambda t:t>0, 'endTime':lambda t:t>0, 'tsuid':lambda x: int(x,16)} )
-        params = { "startTime":startTime }
-        if endTime is not None: params["endTime"]=endTime
-        if tsuid is not None: params["tsuid"]=tsuid
-        if description is not None: params["description"]=description
-        if notes is not None: params["notes"]=notes
-        if custom is not None: params["custom"]=custom
+        params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid, "description":description, "notes":notes, "custom":custom}
+        params = { k:v for k,v in params.iteritems() if v is not None  }
         req = requests.post(utils.ANNOT_TEMPL % {'host': self.hosts[0][0],
                                                  'port': self.hosts[0][1]},
                             data = json.dumps(params))
