@@ -35,6 +35,7 @@ class OpenTSDBError(Exception):
     def __str__(self):
         return "Error %d: %s"%(self.code, self.message)
 
+
 def checkErrors(response, throw=False):
     """Check for errors and either raise an error via the requests module or returns a dict representation of the error."""
     if response.status_code<400:
@@ -43,10 +44,10 @@ def checkErrors(response, throw=False):
         if throw:
             response.raise_for_status()
         else:
-            content = response.json()
             try:
+                content = response.json()
                 error = content["error"]
-            except KeyError:
+            except (KeyError, ValueError):
                 return {
                             "code": response.status_code, 
                             "message": otsdbErrors[response.status_code],

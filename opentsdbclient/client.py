@@ -76,7 +76,10 @@ def process_response(response):
         details = err.get("details","")
         trace = err.get("trace","")
         raise OpenTSDBError(code, message, details, trace)
-    return response.json()
+    if response.status_code != 204:
+        return response.json()
+    else:
+        return None
 
 class RESTOpenTSDBClient:
 
