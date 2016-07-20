@@ -51,9 +51,10 @@ class OpenTSDBAnnotation:
 class OpenTSDBTimeSeries:
     """A time series is made of a metric and a set of (at least one) tags."""
     #basically a metric + tags
-    def __init__(self, metric, tags):
+    def __init__(self, metric, tags, tsuid=None):
         self.metric = metric
         self.tags= tags
+        self.tsuid = tsuid
         if not self.check():
             raise ValueError("Invalid OpenTSDBTimeSeries: \n%s"%str(self))
 
@@ -64,6 +65,12 @@ class OpenTSDBTimeSeries:
             if not (OpenTSDBTimeSeries.checkString(t) and OpenTSDBTimeSeries.checkString(v)):
                 return False
         if len(self.tags)<1 : return False
+        if not self.tsuid is None:
+            if not isinstance(self.tsuid,basestring) : return False
+            try:
+                int(self.tsuid,16)
+            except:
+                return False
         return True
 
     @staticmethod
@@ -79,7 +86,8 @@ class OpenTSDBTimeSeries:
        return True
 
     def getMap(self):
-        return self.__dict__
+        myself = self.__dict__
+        return { k:v for k,v in myself.iteritems() if v is not None  }
 
     def json(self):
         return json.dumps(self.getMap())
@@ -141,6 +149,7 @@ class OpenTSDBMeasurement:
 
     def saveTo(self,client):
         return client.put_measurements([self])
+
 
 class OpenTSDBTreeDefinition:
     def __init__(self,name=None, description=None, notes=None, rules=None, created=None, treeId=None, strictMatch=False, storeFailures=False, enabled=False):
@@ -208,7 +217,6 @@ class OpenTSDBTreeDefinition:
         client.delete_tree(self.treeId,True)
 
 
-
 class OpenTSDBRule:
 
     def __init__(self, treeId, level=0, order=0, ruleType=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
@@ -258,13 +266,45 @@ class OpenTSDBRule:
     def delete(self,client):
         client.delete_tree_rule(self.treeId, self.level, self.order)
 
-#TODO: these objects are for more advanced use.
-#not really needed by the client, but would ease the navigation.
-#I think of instantiating the tree from the treeId + client, and let it do the discovery itelf.
-#It would somehow be the top-level object.
-
-class OpenTSDBTree:
-    pass
-
 class OpenTSDBTreeBranch:
-    pass
+
+    def __init__(self, branchId=None, treeId=None, path=None, displayName=None, depth=None, treeId=None, leaves=None, branches=None, client=None, recursive=False ):
+        self.treeId = treeId
+        self.path = path
+        self.displayName = displayName
+        self.branchId = branchId
+        self.depth = depth
+        self.leaves = leaves
+        self.branches = branches
+
+        if client is not None:
+            # in that case, load from the client. If recursive is set, this will recursively load all the tree.
+            # TODO: check if this is needed. I think so reading the doc: leaves and branches are null for sub-branches.
+            if branchId is not None:
+                data = client.get_tree_branch(branch=self.branchId)
+            elif treeId is not None:
+                data = client.get_tree_branch(branch=self.treeId)
+            else:
+                raise ValueError("Need treeId or branchId to load a branch.")
+            self.treeId = data["treeId"]
+            self.path = data["path"]
+            self.displayName = data["displayName"]
+            self.branchId = data["branchId"]
+            self.depth = data["depth"]
+            self.leaves = map(lambda l: (OpenTSDBTimeSeries(l["metric"], l["tags"], l["tsuid"]), l["displayName"]), data["leaves"])
+            if recursive:
+                self.branches = []
+                for b in data["branches"]:
+                    b["client"]=client
+                    b["recursive"]=True
+                    self.branches.append(OpenTSDBTreeBranch(**b))
+            else:
+                self.branches = map(lambda b:OpenTSDBTreeBranch(**b),data["branches"])
+
+
+class OpenTSDBTree(OpenTSDBTreeBranch):
+
+    def __init__(self,treeId,client):
+        OpenTSDBTreeBranch.__init__(treeId=treeId, client=client, recursive=True)
+
+
