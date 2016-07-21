@@ -1,3 +1,4 @@
+from opentsdbobjects import OpenTSDBTimeSeries
 
 class OpenTSDBQuery:
     """Enables extracting data from the storage system in various formats determined by the serializer selected.
@@ -92,7 +93,6 @@ class OpenTSDBMetricSubQuery:
     
     def check(self):
         if (not isinstance(self.aggregator,basestring) or 
-            not isinstance(self.metric,basestring) or 
             not isinstance(self.rate, bool) or 
             (self.counterMax is not None and not isinstance(self.counterMax,int)) or
             (self.resetValue is not None and not isinstance(self.resetValue,int)) or
@@ -101,10 +101,12 @@ class OpenTSDBMetricSubQuery:
                raise TypeError("OpenTSDBMetricSubQuery type mismatch")
         if self.filters is not None:
             for f in self.filters:
-                if isinstance(i,OpenTSDBFilter):
+                if isinstance(f,OpenTSDBFilter):
                     f.check()
                 else:
                     raise TypeError("OpenTSDBMetricSubQuery type mismatch")
+        if not OpenTSDBTimeSeries.checkString(self.metric):
+            raise ValueError("Invalid metric name")
 
 
 class OpenTSDBtsuidSubQuery:
@@ -154,7 +156,7 @@ class OpenTSDBFilter:
                raise TypeError("OpenTSDBFilter type mismatch")
 
 class OpenTSDBFilterSet:
-    """a list of OpenTSDBFilters associated to an id, for the expression query."""
+    """ A list of OpenTSDBFilters associated to an id, for the expression query."""
 
     def __init__(self, theId, filters):
         self.theId = theId

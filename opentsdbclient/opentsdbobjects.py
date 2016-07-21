@@ -1,5 +1,6 @@
 import json
 import string
+import unicodedata as ud
 
 class OpenTSDBAnnotation:
     def __init__(self,startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
@@ -81,7 +82,7 @@ class OpenTSDBTimeSeries:
           - Only the following characters are allowed: a to z, A to Z, 0 to 9, -, _, ., / or Unicode letters (as per the specification)"""
        asciichars = string.ascii_letters + "0123456789-_./"
        for c in thestring:
-           if not c in asciichars and not ud.category(c) in ['Ll', 'Lu']:
+           if not c in asciichars and not ud.category(unicode(c)) in ['Ll', 'Lu']:
                return False
        return True
 
@@ -268,7 +269,7 @@ class OpenTSDBRule:
 
 class OpenTSDBTreeBranch:
 
-    def __init__(self, branchId=None, treeId=None, path=None, displayName=None, depth=None, treeId=None, leaves=None, branches=None, client=None, recursive=False ):
+    def __init__(self, branchId=None, treeId=None, path=None, displayName=None, depth=None, leaves=None, branches=None, client=None, recursive=False ):
         self.treeId = treeId
         self.path = path
         self.displayName = displayName
