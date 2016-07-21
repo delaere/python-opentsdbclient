@@ -124,9 +124,13 @@ class OpenTSDBtsuidSubQuery:
         if (not isinstance(self.aggregator,basestring) or
             not (isinstance(self.tsuids, list) and not isinstance(self.tsuids, basestring))):
                 raise TypeError("OpenTSDBtsuidSubQuery type mismatch")
+        if len(self.tsuids)<1:
+            raise ValueError("OpenTSDBtsuidSubQuery tsuid list cannot be empty")
         for i in self.tsuids:
             if not isinstance(i,basestring):
                raise TypeError("OpenTSDBtsuidSubQuery type mismatch")
+            int(i,16)
+
 
 
 class OpenTSDBFilter:

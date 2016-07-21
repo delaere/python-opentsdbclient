@@ -1,11 +1,39 @@
 from testtools import TestCase
 from opentsdbquery import OpenTSDBQuery, OpenTSDBMetricSubQuery, OpenTSDBtsuidSubQuery, OpenTSDBFilter, OpenTSDBFilterSet, OpenTSDBExpQuery, OpenTSDBQueryLast
 
+class TestOpenTSDBtsuidSubQuery(TestCase):
+    """test the OpenTSDBtsuidSubQuery standalone"""
+
+    def test_check(self):
+
+        # this is a valid query
+        q = OpenTSDBtsuidSubQuery("sum",["000001000002000042","000001000002000043"])
+
+        # now we attack invalid cases
+
+        testcases = [OpenTSDBtsuidSubQuery(self.getUniqueInteger(),["000001000002000042","000001000002000043"]),
+                     OpenTSDBtsuidSubQuery("sum",self.getUniqueInteger()),
+                     OpenTSDBtsuidSubQuery("sum",[self.getUniqueInteger()])]
+
+        for q in testcases:
+            self.assertRaises(TypeError,q.check)
+
+        testcases = [OpenTSDBtsuidSubQuery("sum",[]),OpenTSDBtsuidSubQuery("sum",[self.getUniqueString()])]
+
+        for q in testcases:
+            self.assertRaises(ValueError,q.check)
+
+    def test_map(self):
+
+        q = OpenTSDBtsuidSubQuery("sum",["000001000002000042","000001000002000043"])
+        expected = {"aggregator": "sum", "tsuids": ["000001000002000042","000001000002000043"]}
+        self.assertEqual(expected,q.getMap())
+
 
 class TestOpenTSDBMetricSubQuery(TestCase):
     """test the OpenTSDBMetricSubQuery standalone"""
 
-    def test_Check(self):
+    def test_check(self):
         """checks the constrains on the constructor"""
 
         # this is a valid query
@@ -15,7 +43,8 @@ class TestOpenTSDBMetricSubQuery(TestCase):
 
         # now we attack invalid cases
 
-        testcases = [OpenTSDBMetricSubQuery("sum", self.getUniqueInteger()),
+        testcases = [OpenTSDBMetricSubQuery(self.getUniqueInteger(),"sys.cpu.0"),
+                     OpenTSDBMetricSubQuery("sum", self.getUniqueInteger()),
                      OpenTSDBMetricSubQuery("sum", "sys.cpu.0", rate=0.1),
                      OpenTSDBMetricSubQuery("sum", "sys.cpu.0", rate=True, counterMax=self.getUniqueString()),
                      OpenTSDBMetricSubQuery("sum", "sys.cpu.0", rate=True, downsample=self.getUniqueInteger()),
@@ -28,7 +57,7 @@ class TestOpenTSDBMetricSubQuery(TestCase):
         self.assertRaises(ValueError,q.check)
 
 
-    def test_Map(self):
+    def test_map(self):
         """Checks the resulting map"""
 
         # this is a query with everything
