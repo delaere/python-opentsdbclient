@@ -163,28 +163,6 @@ class OpenTSDBFilter:
             not isinstance(self.groupBy,bool)):
                raise TypeError("OpenTSDBFilter type mismatch")
 
-#TODO convert to a static method as for other fields of OpenTSDBExpQuery
-class OpenTSDBFilterSet:
-    """ A list of OpenTSDBFilters associated to an id, for the expression query."""
-
-    def __init__(self, theId, filters):
-        self.theId = theId
-        self.filters = filters
-
-    def getMap(self):
-        return {"id": self.theId,
-                "tags": map(lambda f: f.getMap(), self.filters)}
-
-    def check(self):
-        if (not isinstance(self.theId,basestring)):
-            raise TypeError("OpenTSDBFilterSet arg type mismatch")
-        if len(self.filters)<1:
-            raise ValueError("There must be at least one OpenTSDBFilter in a OpenTSDBFilterSet.")
-        for f in self.filters:
-            if not isinstance(f,OpenTSDBFilter):
-                raise TypeError("OpenTSDBFilterSet arg type mismatch")
-            f.check()
-
 class OpenTSDBExpQuery:
     """Allows for querying data using expressions. The query is broken up into different sections.
     Two set operations (or Joins) are allowed. The union of all time series or the intersection.
@@ -212,7 +190,7 @@ class OpenTSDBExpQuery:
         
     def getMap(self):
         myself = { "time": self.timeSection,
-                   "filters": map(lambda f:f.getMap(),self.filters),
+                   "filters": self.filters,
                    "metrics": self.metrics,
                    "expressions": self.expressions
                    }
@@ -229,10 +207,8 @@ class OpenTSDBExpQuery:
         if len(self.filters)<1:
             raise ValueError("At least one filter must be specified.")
         for f in self.filters:
-            if not isinstance(f,OpenTSDBFilterSet):
+            if not isinstance(f,dict):
                 raise TypeError("OpenTSDBExpQuery filter type mismatch.")
-            else:
-                f.check()
         if len(self.metrics)<1:
             raise ValueError("There must be at least one metric.")
         for m in self.metrics:
@@ -270,6 +246,20 @@ class OpenTSDBExpQuery:
             timesection["downsampler"]=downsampler
         
         return timesection
+
+    @staticmethod
+    def filters(theId, filters):
+        """A set of filters with an id"""
+        if (not isinstance(theId,basestring)):
+            raise TypeError("filter id must be a string")
+        if len(filters)<1:
+            raise ValueError("There must be at least one filter")
+        for f in filters:
+            if not isinstance(f,OpenTSDBFilter):
+                raise TypeError("expect a OpenTSDBFilter instance")
+            f.check()
+        return {"id": theId,
+                "tags": map(lambda f: f.getMap(), filters)}
 
     @staticmethod
     def downsampler(interval, aggregator, fillPolicy=None):

@@ -1,5 +1,5 @@
 from testtools import TestCase
-from opentsdbquery import OpenTSDBQuery, OpenTSDBMetricSubQuery, OpenTSDBtsuidSubQuery, OpenTSDBFilter, OpenTSDBFilterSet, OpenTSDBExpQuery, OpenTSDBQueryLast
+from opentsdbquery import OpenTSDBQuery, OpenTSDBMetricSubQuery, OpenTSDBtsuidSubQuery, OpenTSDBFilter, OpenTSDBExpQuery, OpenTSDBQueryLast
 
 class TestOpenTSDBtsuidSubQuery(TestCase):
     """test the OpenTSDBtsuidSubQuery standalone"""
@@ -154,15 +154,10 @@ class TestOpenTSDBExpQuery(TestCase):
 
         # filters do not require thorough test since filters are tested elsewhere. 
         filters = [OpenTSDBFilter("wildcard","host","*",True),OpenTSDBFilter("literal_or","dc","lga|lga1|lga2")]
-        f = OpenTSDBFilterSet("id", filters)
-        f.check()
-        f = OpenTSDBFilterSet(self.getUniqueInteger(),filters)
-        self.assertRaises(TypeError,f.check)
-        f = OpenTSDBFilterSet("id",[])
-        self.assertRaises(ValueError,f.check)
-        f= OpenTSDBFilterSet("id",[{},{}])
-        self.assertRaises(TypeError,f.check)
-        f = OpenTSDBFilterSet("id", filters)
+        f = OpenTSDBExpQuery.filters("id", filters)
+        self.assertRaises(TypeError,OpenTSDBExpQuery.filters,self.getUniqueInteger(),filters)
+        self.assertRaises(ValueError,OpenTSDBExpQuery.filters,"id",[])
+        self.assertRaises(TypeError,OpenTSDBExpQuery.filters,"id",[{},{}])
 
         # metrics
         m = OpenTSDBExpQuery.metric("cpunice","id","system.cpu.nice","count",fp)
@@ -198,7 +193,7 @@ class TestOpenTSDBExpQuery(TestCase):
         # mimics the example in the doc.
 
 	ts = OpenTSDBExpQuery.timeSection("sum","1y-ago")
-	f = OpenTSDBFilterSet("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
+	f = OpenTSDBExpQuery.filters("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
 	m1 = OpenTSDBExpQuery.metric("a","f1","sys.cpu.user",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
 	m2 = OpenTSDBExpQuery.metric("b","f1","sys.cpu.iowait",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
 	e1 = OpenTSDBExpQuery.expression("e","a + b")
@@ -218,8 +213,7 @@ class TestOpenTSDBExpQuery(TestCase):
         ds = OpenTSDBExpQuery.downsampler("1d","avg", fillPolicy=fp)
         ts = OpenTSDBExpQuery.timeSection("sum","1h-ago","2015/05/05-00:00:00",ds,True)
         filters = [OpenTSDBFilter("wildcard","host","*",True),OpenTSDBFilter("literal_or","dc","lga|lga1|lga2")]
-        f = OpenTSDBFilterSet("id", filters)
-        f.check()
+        f = OpenTSDBExpQuery.filters("id", filters)
         m = OpenTSDBExpQuery.metric("cpunice","id","system.cpu.nice","count",fp)
         j = OpenTSDBExpQuery.join("intersection", useQueryTags=True, includeAggTags=False)
         e = OpenTSDBExpQuery.expression("cpubusy", "a + b / 1024", j, fp)
@@ -247,7 +241,7 @@ class TestOpenTSDBExpQuery(TestCase):
         # mimics the example in the doc.
 
 	ts = OpenTSDBExpQuery.timeSection("sum","1y-ago")
-	f = OpenTSDBFilterSet("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
+	f = OpenTSDBExpQuery.filters("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
 	m1 = OpenTSDBExpQuery.metric("a","f1","sys.cpu.user",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
 	m2 = OpenTSDBExpQuery.metric("b","f1","sys.cpu.iowait",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
 	e1 = OpenTSDBExpQuery.expression("e","a + b")
