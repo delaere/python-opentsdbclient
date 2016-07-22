@@ -1,5 +1,6 @@
 from testtools import TestCase
 from opentsdberrors import OpenTSDBError, otsdbErrors, checkErrors
+from client import checkArg, checkArguments, process_response #TODO: check these three methods
 from requests import Response
 from requests.exceptions import HTTPError
 import json

@@ -89,9 +89,7 @@ class RESTOpenTSDBClient:
     def get_statistics(self):
         """Get info about what metrics are registered and with what stats."""
 
-        req = requests.get(templates.STATS_TEMPL % {'host': self.host,
-                                                'port': self.port})
-
+        req = requests.get(templates.STATS_TEMPL % {'host': self.host, 'port': self.port})
         return process_response(req)
 
     def put_measurements(self, measurements, summary=False, details=False, sync=False, sync_timeout=0, compress=False):
@@ -113,28 +111,22 @@ class RESTOpenTSDBClient:
         rawdata = json.dumps(map(lambda x:x.getMap(),measurements))
         if compress:
             compressedData = zlib.compress(rawData)
-            req = requests.post(templates.PUT_TEMPL % {'host': self.host,
-                                                   'port': self.port,
-                                                   'options': options},
+            req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options},
                                 data=compressedData,
                                 headers={' Content-Encoding':'gzip'} )
         else:
-            req = requests.post(templates.PUT_TEMPL % {'host': self.host,
-                                                   'port': self.port,
-                                                   'options': options },
+            req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options },
                                 data=rawData )
         #handle the response
         return process_response(req) #TODO: check what happens when an error 400 occurs.
 
     def get_aggregators(self):
         """Used to get the list of default aggregation functions."""
-        req = requests.get(templates.AGGR_TEMPL % {'host': self.host,
-                                               'port': self.port})
+        req = requests.get(templates.AGGR_TEMPL % {'host': self.host,'port': self.port})
         return process_response(req)
 
     def get_annotation(self, startTime, endTime=None, tsuid=None):
         """Used to get an annotation.
-        
            All annotations are identified by the startTime field and optionally the tsuid field. 
            Each note can be global, meaning it is associated with all timeseries, or it can be local, 
            meaning it's associated with a specific tsuid. 
@@ -145,14 +137,12 @@ class RESTOpenTSDBClient:
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
-        req = requests.get(templates.ANNOT_TEMPL % {'host': self.host,
-                                                'port': self.port},
+        req = requests.get(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(params))
         return OpenTSDBAnnotation(**process_response(req))
 
     def set_annotation(self, startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
         """Used to set an annotation.
-        
            Annotations are very basic objects used to record a note of an arbitrary event at some point, 
            optionally associated with a timeseries. 
            Annotations are not meant to be used as a tracking or event based system, 
@@ -163,8 +153,7 @@ class RESTOpenTSDBClient:
                                                {'startTime':lambda t:t>0, 'endTime':lambda t:t>0, 'tsuid':lambda x: int(x,16)} )
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid, "description":description, "notes":notes, "custom":custom}
         params = { k:v for k,v in params.iteritems() if v is not None  }
-        req = requests.post(templates.ANNOT_TEMPL % {'host': self.host,
-                                                 'port': self.port},
+        req = requests.post(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(params))
         return OpenTSDBAnnotation(**process_response(req))
 
@@ -177,43 +166,37 @@ class RESTOpenTSDBClient:
         params = { "startTime":startTime }
         if endTime is not None: params["endTime"]=endTime
         if tsuid is not None: params["tsuid"]=tsuid
-        req = requests.delete(templates.ANNOT_TEMPL % {'host': self.host,
-                                                   'port': self.port},
+        req = requests.delete(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(params))
         return process_response(req)
 
     def get_configuration(self):
         """This endpoint returns information about the running configuration of the TSD. 
-
            It is read only and cannot be used to set configuration options.
            This endpoint does not require any parameters via query string or body.
            The response is a hash map of configuration properties and values."""
 
-        req = requests.get(templates.CONF_TEMPL % {'host': self.host,
-                                               'port': self.port})
+        req = requests.get(templates.CONF_TEMPL % {'host': self.host,'port': self.port})
         return process_response(req)
 
     def get_filters(self):
         """This endpoint lists the various filters loaded by the TSD and some information about how to use them."""
 
-        req = requests.get(templates.FILT_TEMPL % {'host': self.host,
-                                               'port': self.port})
+        req = requests.get(templates.FILT_TEMPL % {'host': self.host,'port': self.port})
         return process_response(req)
 
     def drop_caches(self):
         """This endpoint purges the in-memory data cached in OpenTSDB. 
         This includes all UID to name and name to UID maps for metrics, tag names and tag values."""
 
-        req = requests.get(templates.DCACH_TEMPL % {'host': self.host,
-                                                'port': self.port})
+        req = requests.get(templates.DCACH_TEMPL % {'host': self.host,'port': self.port})
         return process_response(req)
 
     def get_serializers(self):
         """Used to get the list of serializer plugins loaded by the running TSD. 
         Information given includes the name, implemented methods, content types and methods.."""
 
-        req = requests.get(templates.SERIAL_TEMPL % {'host': self.host,
-                                                 'port': self.port})
+        req = requests.get(templates.SERIAL_TEMPL % {'host': self.host,'port': self.port})
         return process_response(req)
 
     def suggest(self, datatype, query=None, maxResults=None):
@@ -228,8 +211,7 @@ class RESTOpenTSDBClient:
         params = { "type":datatype }
         if query is not None: params["q"]=query
         if maxResults is not None and maxResults>0: params["max"]=maxResults
-        req = requests.post(templates.SUGGEST_TEMPL % {'host': self.host,
-                                                 'port': self.port},
+        req = requests.post(templates.SUGGEST_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(params))
         return process_response(req)
 
@@ -246,8 +228,7 @@ class RESTOpenTSDBClient:
             endpoint = templates.QUERYLST_TEMPL
         else:
             raise TypeError("Not a known query type. Should be OpenTSDBQuery or OpenTSDBExpQuery.")
-        req = requests.post(endpoint % {'host': self.host,
-                                        'port': self.port},
+        req = requests.post(endpoint % {'host': self.host,'port': self.port},
                             data = json.dumps(params))
         return process_response(req)
 
@@ -276,20 +257,17 @@ class RESTOpenTSDBClient:
             theData = { "metric":metric, "tags": tagslist,  "useMeta": useMeta }
         else:
             theData = { "query":query, "limit":limit, "startindex":startindex }
-        req = requests.post(endpoint[mode.upper()] % {'host': self.host,
-                                                      'port': self.port},
+        req = requests.post(endpoint[mode.upper()] % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
     def get_version(self):
         """Used to check OpenTSDB version.
-
         That might be needed in case of unknown bugs - this code is written
         only for the 2.x REST API version, so some of the failures might refer
         to the wrong OpenTSDB version installed."""
 
-        req = requests.get(templates.VERSION_TEMPL % {'host': self.host,
-                                                  'port': self.port})
+        req = requests.get(templates.VERSION_TEMPL % {'host': self.host,'port': self.port})
         return process_response(req)
 
     def assign_uid(self, metric_list=None, tagk_list=None, tagv_list=None):
@@ -305,8 +283,7 @@ class RESTOpenTSDBClient:
         if metric_list is None and tagk_list is None and tagv_list is None: 
             return None
         theData = { "metric":metric_list, "tagk":tagk_list, "tagv":tagv_list }
-        req = requests.post(templates.ASSIGNUID_TEMPL % {'host': self.host,
-                                                     'port': self.port},
+        req = requests.post(templates.ASSIGNUID_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req) # note: this will raise an error if any of the value is already assigned. #TODO: check if we can still access the response
 
@@ -317,8 +294,7 @@ class RESTOpenTSDBClient:
 
         checkArguments(inspect.currentframe(), {'tsuid':basestring}, {'tsuid':lambda x: int(x,16)})
 
-        req = requests.get(templates.TSMETA_TEMPL % {'host': self.host,
-                                                 'port': self.port},
+        req = requests.get(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps({ "tsuid": tsuid }))
         return process_response(req)
 
@@ -337,8 +313,7 @@ class RESTOpenTSDBClient:
         theData = { "tsuid":tsuid, "description":description, "displayName":displayName, "notes":notes, 
                     "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,
-                                                  'port': self.port},
+        req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
@@ -349,8 +324,7 @@ class RESTOpenTSDBClient:
 
         checkArguments(inspect.currentframe(), {'tsuid':basestring}, {'tsuid':lambda x: int(x,16)})
 
-        req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,
-                                                    'port': self.port},
+        req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps({ "tsuid": tsuid }))
         return process_response(req)
 
@@ -377,8 +351,7 @@ class RESTOpenTSDBClient:
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
 
         theData = {"uid":uid, "type":uidtype}
-        req = requests.get(templates.UIDMETA_TEMPL % {'host': self.host,
-                                                  'port': self.port},
+        req = requests.get(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(theData))
         return process_response(req)
 
@@ -392,8 +365,7 @@ class RESTOpenTSDBClient:
 
         theData = { "uid":uid, "description":description, "displayName":displayName, "notes":notes, "custom":custom}
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        req = requests.post(templates.UIDMETA_TEMPL % {'host': self.host,
-                                                   'port': self.port},
+        req = requests.post(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
@@ -404,8 +376,7 @@ class RESTOpenTSDBClient:
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
 
         theData = {"uid":uid, "type":uidtype}
-        req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,
-                                                    'port': self.port},
+        req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(theData))
         return process_response(req)
 
@@ -421,8 +392,7 @@ class RESTOpenTSDBClient:
 
         theData = {"name":name, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        req = requests.post(templates.TREE_TEMPL % {'host': self.host,
-                                                'port': self.port},
+        req = requests.post(templates.TREE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
@@ -436,8 +406,7 @@ class RESTOpenTSDBClient:
         checkArguments(inspect.currentframe(), {'treeId':int, 'definition':bool})
 
         theData = { "treeId":treeId, "definition":definition }
-        req = requests.delete(templates.TREE_TEMPL % {'host': self.host,
-                                                  'port': self.port},
+        req = requests.delete(templates.TREE_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(theData))
         return process_response(req)
 
@@ -448,8 +417,7 @@ class RESTOpenTSDBClient:
 
         theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        req = requests.post(templates.TREE_TEMPL % {'host': self.host,
-                                                'port': self.port},
+        req = requests.post(templates.TREE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
@@ -458,8 +426,7 @@ class RESTOpenTSDBClient:
 
         checkArguments(inspect.currentframe(), {'treeId':int})
 
-        req = requests.get(templates.TREE_TEMPL % {'host': self.host,
-                                               'port': self.port},
+        req = requests.get(templates.TREE_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps({"treeId":treeId}))
         resp = process_response(req)
         if isinstance(resp,list):
@@ -482,8 +449,7 @@ class RESTOpenTSDBClient:
             theData = { "treeId":treeId }
         else:
             raise ValueError("get_tree_branch requires at least one of treeId or branch.")
-        req = requests.get(templates.TREEBRANCH_TEMPL % {'host': self.host,
-                                                     'port': self.port},
+        req = requests.get(templates.TREEBRANCH_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(theData))
         return process_response(req)
 
@@ -504,8 +470,7 @@ class RESTOpenTSDBClient:
         if len(tsuids)>0:
             thetsuids = thetsuids[:-1]
         theData["tsuids"]=thetsuids
-        req = requests.get(templates.TREECOLL_TEMPL % {'host': self.host,
-                                                   'port': self.port},
+        req = requests.get(templates.TREECOLL_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(theData))
         return process_response(req)
 
@@ -526,8 +491,7 @@ class RESTOpenTSDBClient:
         if len(tsuids)>0:
             thetsuids = thetsuids[:-1]
         theData["tsuids"]=thetsuids
-        req = requests.get(templates.TREEMATCH_TEMPL % {'host': self.host,
-                                                    'port': self.port},
+        req = requests.get(templates.TREEMATCH_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(theData))
         return process_response(req)
         
@@ -545,8 +509,7 @@ class RESTOpenTSDBClient:
         if len(tsuids)>0:
             thetsuids = thetsuids[:-1]
         theData["tsuids"]=thetsuids
-        req = requests.get(templates.TREETEST_TEMPL % {'host': self.host,
-                                                   'port': self.port},
+        req = requests.get(templates.TREETEST_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(theData))
         return process_response(req)
 
@@ -557,8 +520,7 @@ class RESTOpenTSDBClient:
         checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int})
 
         theData = { "treeId":treeId, "level":level, "order":order }
-        req = requests.get(templates.TREERULE_TEMPL % {'host': self.host,
-                                                   'port': self.port},
+        req = requests.get(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(theData))
         return OpenTSDBRule(**process_response(req))
 
@@ -577,8 +539,7 @@ class RESTOpenTSDBClient:
         theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx, "type":ruleType, "description":description, 
                     "notes":notes, "field":field, "customField":customField, "regex":regex, "separator":separator, "displayFormat":displayFormat }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
-        req = requests.post(templates.TREERULE_TEMPL % {'host': self.host,
-                                                    'port': self.port},
+        req = requests.post(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
@@ -590,13 +551,11 @@ class RESTOpenTSDBClient:
 
         if deleteAll:
             theData = { "treeId":treeId }
-            req = requests.delete(templates.TREERULES_TEMPL % {'host': self.host,
-                                                           'port': self.port},
+            req = requests.delete(templates.TREERULES_TEMPL % {'host': self.host,'port': self.port},
                                   data = json.dumps(theData))
         else:
             theData = { "treeId":treeId, "level":level, "order":order }
-            req = requests.delete(templates.TREERULE_TEMPL % {'host': self.host,
-                                                          'port': self.port},
+            req = requests.delete(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                                   data = json.dumps(theData))
 	return process_response(req)
 
