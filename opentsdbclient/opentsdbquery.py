@@ -1,4 +1,5 @@
 from opentsdbobjects import OpenTSDBTimeSeries
+import string
 
 class OpenTSDBQuery:
     """Enables extracting data from the storage system in various formats determined by the serializer selected.
@@ -41,8 +42,9 @@ class OpenTSDBQuery:
                    "showQuery": self.showQuery,
                    "delete": self.delete
                 }
-        if end is not None:
+        if self.end is not None:
             myself["end"] = self.end
+        return myself
 
     def check(self):
         if (not isinstance(self.subqueries,list) or
@@ -55,9 +57,11 @@ class OpenTSDBQuery:
             not isinstance(self.showQuery,bool) or
             not isinstance(self.delete,bool)):
             raise TypeError("OpenTSDBQuery type mismatch")
+        if len(self.subqueries)<1:
+            raise ValueError("Requires at least one subquery")
         for q in self.subqueries:
             if not isinstance(q,OpenTSDBMetricSubQuery) and not isinstance(q,OpenTSDBtsuidSubQuery):
-                raise TypeError("OpenTSDBQuery type mismatch")
+                raise TypeError("Subqueries must be either OpenTSDBMetricSubQuery or OpenTSDBtsuidSubQuery")
             else:
                 q.check()
 
@@ -159,6 +163,7 @@ class OpenTSDBFilter:
             not isinstance(self.groupBy,bool)):
                raise TypeError("OpenTSDBFilter type mismatch")
 
+#TODO convert to a static method as for other fields of OpenTSDBExpQuery
 class OpenTSDBFilterSet:
     """ A list of OpenTSDBFilters associated to an id, for the expression query."""
 
@@ -239,8 +244,9 @@ class OpenTSDBExpQuery:
             if not isinstance(e,dict):
                 raise TypeError("OpenTSDBExpQuery expression type mismatch.")
         if self.outputs is not None:
-            if not isinstance(self.outputs,dict):
-                raise TypeError("OpenTSDBExpQuery arg type mismatch.")
+            for o in self.outputs:
+                if not isinstance(o,dict):
+                    raise TypeError("OpenTSDBExpQuery output  type mismatch.")
 
     # Methods below are there to help in the constructor.
     # They contains additional checks.
@@ -248,17 +254,18 @@ class OpenTSDBExpQuery:
     @staticmethod
     def timeSection(aggregator, start, end=None, downsampler=None, rate=False):
         """The time section is required. It affects the time range and optional reductions for all metrics requested."""
-        if not isinstance(start,int) or not isinstance(aggregator, basestring) or not isinstance(rate, bool):
+        #TODO int and strings are both valid for start and end. Will have to test with the db since the doc is self-contradictory.
+        if not isinstance(start,(int,basestring)) or not isinstance(aggregator, basestring) or not isinstance(rate, bool):
             raise TypeError("timeSection args type mismatch.")
         timesection = { "start": start, 
                         "aggregator": aggregator,
                         "rate": rate}
         if end is not None: 
-            if not isinstance(end,int):
-                raise TypeError("end must be integer")
+            if not isinstance(end,(int,basestring)):
+                raise TypeError("end must be integer or string")
             timesection["end"]=end
         if downsampler is not None: 
-            if not isinstance(downsample, dict):
+            if not isinstance(downsampler, dict):
                 raise TypeError("DownSampler should be a dict")
             timesection["downsampler"]=downsampler
         
@@ -296,6 +303,8 @@ class OpenTSDBExpQuery:
            There must be at least one metric."""
         if not isinstance(metricId,basestring) or not isinstance(filterId,basestring) or not isinstance(metricName,basestring):
             raise TypeError("metric args type mismatch.")
+        if any(char not in string.ascii_letters+string.digits for char in metricId):
+            raise ValueError("unique ID for the metric MUST be a simple string, no punctuation or spaces")
         theMetric = {"id": metricId, "filter": filterId, "metric": metricName}
         if aggregator is not None:
             if not isinstance(aggregator,basestring):
