@@ -367,31 +367,35 @@ class OpenTSDBQueryLast:
        Locating the last point can be done with the timestamp of the meta data counter 
        or by scanning backwards from the current system time."""
 
-    def __init__(self, metrics=None, tsuids=None, resolveNames=False, backScan=True):
+    def __init__(self, metrics=None, tsuids=None, resolveNames=False, backScan=0):
         self.resolveNames = resolveNames
         self.backScan = backScan
-
-        if ((metrics is None and tsuids is None) or
-            (metrics is None and len(tsuids)==0) or
-            (tsuids is None and len(metrics)==0)):
-            raise ValueError("OpenTSDBQueryLast requires at least one metric or one tsuid.")
-
-        if not isinstance(metrics, list) or not isinstance(tsuids,list) or not isinstance(self.resolveNames,bool) or not isinstance(self.backScan,bool):
-            raise TypeError("OpenTSDBQueryLast arg type mismatch.")
-
-        self.queries = []
-
-        if metrics is not None:
-            for m in metrics:
-                self.queries.append(m)
-        if tsuids is not None:
-            self.queries.append({"tsuids":tsuids})
+        self.metrics = metrics
+        self.tsuids = tsuids
 
     def getMap(self):
-        return { "queries": self.queries, "resolveNames": self.resolveNames, "backScan": self.backScan }
+        queries = []
+
+        if self.metrics is not None:
+            for m in self.metrics:
+               queries.append(m)
+        if self.tsuids is not None:
+            queries.append({"tsuids":self.tsuids})
+
+        return { "queries": queries, "resolveNames": self.resolveNames, "backScan": self.backScan }
 
     def check(self):
-        pass #all is done in the constructor
+        if ((self.metrics is None and self.tsuids is None) or
+            (self.metrics is None and len(self.tsuids)==0) or
+            (self.tsuids is None and len(self.metrics)==0) or
+            self.metrics is not None and self.tsuids is not None and len(self.metrics)==0 and len(self.tsuids)==0):
+            raise ValueError("OpenTSDBQueryLast requires at least one metric or one tsuid.")
+
+        if not isinstance(self.metrics, list) or not isinstance(self.tsuids,list) or not isinstance(self.resolveNames,bool) or not isinstance(self.backScan,int):
+            raise TypeError("OpenTSDBQueryLast arg type mismatch.")
+
+        if self.backScan<0:
+            raise ValueError("backScan must be a positive integer")
 
     @staticmethod
     def metric(metric, tags):

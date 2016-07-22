@@ -324,12 +324,32 @@ class TestOpenTSDBExpQuery(TestCase):
 
         self.assertEqual(expected,q.getMap())
 
-#TODO: OpenTSDBQueryLast:
-class TestOpenTSDBQueryLast:
+class TestOpenTSDBQueryLast(TestCase):
 
     def test_check(self):
-        pass
+        q = OpenTSDBQueryLast([OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"})], ["000001000002000042","000001000002000043"],True,24)
+        q.check()
+
+        testcases = [OpenTSDBQueryLast(),
+                     OpenTSDBQueryLast([]),
+                     OpenTSDBQueryLast(None,[]),
+                     OpenTSDBQueryLast([],[]),
+                     OpenTSDBQueryLast([OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"})], ["000001000002000042","000001000002000043"],True,-10) ]
+
+        for q in testcases:
+            self.assertRaises(ValueError,q.check)
+
+        testcases = [OpenTSDBQueryLast([OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"})], ["000001000002000042","000001000002000043"],True,24.2),
+                     OpenTSDBQueryLast([OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"})], ["000001000002000042","000001000002000043"],"",24),
+                     OpenTSDBQueryLast([OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"})], "000001000002000043",True,24),
+                     OpenTSDBQueryLast(OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"}), ["000001000002000042","000001000002000043"],True,24)]
+
+        for q in testcases:
+            self.assertRaises(TypeError,q.check)
 
     def test_map(self):
-        pass
+        q = OpenTSDBQueryLast([OpenTSDBQueryLast.metric("sys.cpu.user",{"host":"web01", "dc": "lga"})], ["000001000002000042","000001000002000043"],True,24)
+        expected = {'resolveNames': True, 'backScan': 24, 'queries': [{'metric': 'sys.cpu.user', 'tags': {'host': 'web01', 'dc': 'lga'}}, {'tsuids': ['000001000002000042', '000001000002000043']}]}
+        self.assertEqual(expected,q.getMap())
+
 
