@@ -1,6 +1,7 @@
 import json
 import string
 import unicodedata as ud
+from opentsdberrors import OpenTSDBError
 
 class OpenTSDBAnnotation:
     def __init__(self,startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
@@ -26,7 +27,7 @@ class OpenTSDBAnnotation:
         if not (self.notes is None or isinstance(self.notes,basestring)): return False
         if not self.custom is None:
             for k,v in self.custom.iteritems():
-                if not isinstance(k,basestring) and isinstance(v,basestring): return False
+                if not (isinstance(k,basestring) and isinstance(v,basestring)): return False
         return True
 
     def getMap(self):
@@ -56,14 +57,20 @@ class OpenTSDBTimeSeries:
         self.metric = metric
         self.tags= tags
         self.tsuid = tsuid
+        self.metric_uid = None
         if not self.check():
             raise ValueError("Invalid OpenTSDBTimeSeries: \n%s"%str(self))
+        self.tagk_uids = {}
+        self.tagv_uids = {}
+        for k,v in self.tags.iteritems():
+            self.tagk_uids[k] = None
+            self.tagv_uids[v] = None
 
     def check(self):
         if not OpenTSDBTimeSeries.checkString(self.metric): 
             return False
         for t,v in self.tags.iteritems():
-            if not (OpenTSDBTimeSeries.checkString(t) and OpenTSDBTimeSeries.checkString(v)):
+            if not ((OpenTSDBTimeSeries.checkString(t) and OpenTSDBTimeSeries.checkString(v))):
                 return False
         if len(self.tags)<1 : return False
         if not self.tsuid is None:
@@ -88,7 +95,7 @@ class OpenTSDBTimeSeries:
 
     def getMap(self):
         myself = self.__dict__
-        return { k:v for k,v in myself.iteritems() if v is not None  }
+        return { k:v for k,v in myself.iteritems() if (v is not None and "_uid" not in k) }
 
     def json(self):
         return json.dumps(self.getMap())
@@ -97,14 +104,35 @@ class OpenTSDBTimeSeries:
         return self.getMap().__str__()
 
     def assign_uid(self,client):
+        self.metric_uid = ""
+        self.tagk_uids = {}
+        self.tagv_uids = {}
         try:
-            client.assign_uid([self.metric], list(self.tags.keys()), list(self.tags.values()))
+            r = client.assign_uid([self.metric], list(self.tags.keys()), list(self.tags.values()))
         except OpenTSDBError as e:
-            if e.code is 400:
-                pass #ignore... this is expected
-                print e.message, e.details # for debug
+            if e.code==400:
+                print e.code, e.message, e.details # for debug
+                r = json.loads(e.details)
             else:
                 raise
+        if self.metric in r["metric"]:
+            self.metric_uid = r["metric"][self.metric]
+        elif self.metric in r["metric_errors"]:
+            self.metric_uid = r["metric_errors"][self.metric].split()[-1]
+        else:
+            raise OpenTSDBError(400,"assign_uid: unexpected error",json.dumps(r),"")
+        for k,v in self.tags.iteritems():
+            try:
+                if k in r["tagk"]:
+                    self.tagk_uids[k]=r["tagk"][k]
+                else:
+                    self.tagk_uids[k]=r["tagk_errors"][k].split()[-1]
+                if v in r["tagv"]:
+                    self.tagv_uids[v]=r["tagv"][v]
+                else:
+                    self.tagv_uids[v]=r["tagv_errors"][v].split()[-1]
+            except:
+                raise OpenTSDBError(400,"assign_uid: unexpected error",json.dumps(r),"")
 
 
 class OpenTSDBMeasurement:

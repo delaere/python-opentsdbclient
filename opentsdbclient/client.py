@@ -66,9 +66,9 @@ def checkArguments(frame, argTypes, valueChecks = {},
         checkArg(value, theType, noneAllowed, typeErrorMessage, valueCheck, valueErrorMessage)
     return True
 
-def process_response(response):
+def process_response(response, allow=[200,204,301]):
     """Processes the response and raise an error if needed."""
-    err = checkErrors(response)
+    err = checkErrors(response,allow=allow)
     if err is not None:
         code = err["code"]
         message = err["message"]
@@ -134,9 +134,8 @@ class RESTOpenTSDBClient:
 
         checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring}, 
                                                {'startTime':lambda t:t>0, 'endTime':lambda t:t>0,'tsuid':lambda x: int(x,16)})
-        params = { "startTime":startTime }
-        if endTime is not None: params["endTime"]=endTime
-        if tsuid is not None: params["tsuid"]=tsuid
+        params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid}
+        params = { k:v for k,v in params.iteritems() if v is not None  }
         req = requests.get(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(params))
         return OpenTSDBAnnotation(**process_response(req))
@@ -284,7 +283,7 @@ class RESTOpenTSDBClient:
         theData = { "metric":metric_list, "tagk":tagk_list, "tagv":tagv_list }
         req = requests.post(templates.ASSIGNUID_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
-        return process_response(req) # note: this will raise an error if any of the value is already assigned. #TODO: check if we can still access the response
+        return process_response(req, allow=[200,400])
 
     def get_tsmeta(self, tsuid):
         """This endpoint enables searching timeseries meta data information, that is meta data associated with 

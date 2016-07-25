@@ -36,9 +36,9 @@ class OpenTSDBError(Exception):
         return "Error %d: %s"%(self.code, self.message)
 
 
-def checkErrors(response, throw=False):
+def checkErrors(response, throw=False, allow=[200, 204, 301]):
     """Check for errors and either raise an error via the requests module or returns a dict representation of the error."""
-    if response.status_code<400:
+    if response.status_code in allow:
         return None
     else:
         if throw:
