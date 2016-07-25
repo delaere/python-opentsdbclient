@@ -20,7 +20,7 @@ import inspect
 
 import opentsdbquery
 import templates
-from opentsdberrors import checkErrors
+from opentsdberrors import checkErrors, OpenTSDBError
 from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
 
 
@@ -163,9 +163,8 @@ class RESTOpenTSDBClient:
         checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring}, 
                                                {'startTime':lambda t:t>0, 'endTime':lambda t:t>0,'tsuid':lambda x: int(x,16)})
 
-        params = { "startTime":startTime }
-        if endTime is not None: params["endTime"]=endTime
-        if tsuid is not None: params["tsuid"]=tsuid
+        params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid }
+        params = { k:v for k,v in params.iteritems() if v is not None }
         req = requests.delete(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(params))
         return process_response(req)
