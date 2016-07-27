@@ -1,17 +1,7 @@
+# inspired by a code released with 
 # Copyright 2014: Mirantis Inc.
 # All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License. You may obtain
-# a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+# Licensed under the Apache License, Version 2.0 (the "License")
 
 import json
 import zlib
@@ -23,6 +13,9 @@ import templates
 from opentsdberrors import checkErrors, OpenTSDBError
 from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
 
+#TODO: introduce a Response class
+# it should give access to the (error) code, the response content and the error content.
+# right now, we have the supposedly interesting part but much is hidden.
 
 def checkArg(value, thetype, NoneAllowed=False, typeErrorMessage="Type mismatch", valueCheck=None, valueErrorMessage="Value error"):
     """check a single argument."""
@@ -90,7 +83,12 @@ class RESTOpenTSDBClient:
         """Get info about what metrics are registered and with what stats."""
 
         req = requests.get(templates.STATS_TEMPL % {'host': self.host, 'port': self.port})
-        return process_response(req)
+        stats = process_response(req)
+        # build a vector of OpenTSDBMeasurements
+        output = []
+        for s in stats:
+            output.append(OpenTSDBMeasurement(OpenTSDBTimeSeries(s["metric"],s["tags"]),s["timestamp"],s["value"]))
+        return output
 
     def put_measurements(self, measurements, summary=False, details=False, sync=False, sync_timeout=0, compress=False):
         """Post new meter(s) to the database.
@@ -118,7 +116,7 @@ class RESTOpenTSDBClient:
             req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options },
                                 data=rawData )
         #handle the response
-        return process_response(req, allow=[200,204,301,400]) #TODO: check what happens when an error 400 occurs.
+        return process_response(req, allow=[200,204,301,400])
 
     def get_aggregators(self):
         """Used to get the list of default aggregation functions."""

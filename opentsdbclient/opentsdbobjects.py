@@ -141,7 +141,7 @@ class OpenTSDBMeasurement:
         self.ts = timeseries
         self.timestamp = timestamp
         if isinstance(value,basestring):
-            if '.' in self.value:
+            if '.' in value:
                 self.value = float(value)
             else:
                 self.value = int(value)
