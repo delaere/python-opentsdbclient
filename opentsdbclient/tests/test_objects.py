@@ -187,12 +187,210 @@ class TestOpenTSDBTimeSeries(TestCase):
         self.assertEqual("000013",ts.tagk_uids["dc"])
 
 
-#TODO: test all objects standalone.
+class TestOpenTSDBMeasurement(TestCase):
 
-#class OpenTSDBMeasurement:
-#class OpenTSDBTreeDefinition:
-#class OpenTSDBRule:
+    def test_check(self):
+        # a valid case
+        m = OpenTSDBMeasurement(OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"},'0000150000070010D0'),int(time.time()),self.getUniqueInteger())
 
+        # Timestamps must be integers and be no longer than 13 digits
+        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),12.5,self.getUniqueInteger())
+        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),"",self.getUniqueInteger())
+        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),12345678901234,self.getUniqueInteger())
+
+        # Data point can have a minimum value of -9,223,372,036,854,775,808 and a maximum value of 9,223,372,036,854,775,807 (inclusive)
+        # Floats are also valid and stored on 32 bits (IEEE 754 floating-point "single format" with positive and negative value support)
+        # on most platforms, this means int or float, excluding long. But this would not be portable.
+        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),int(time.time()),9223372036854775808)
+        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),int(time.time()),-9223372036854775809)
+
+    def test_getMap(self):
+        m = OpenTSDBMeasurement(OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"},'0000150000070010D0'),1346846400,18)
+        expected = {'timestamp': 1346846400, 'tsuid': '0000150000070010D0', 'metric': 'sys.cpu.nice', 'value': 18, 'tags': {'host': 'web01', 'dc': 'lga'}}
+        self.assertEqual(expected,m.getMap())
+
+    def test_client(self):
+        m = OpenTSDBMeasurement(OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"},'0000150000070010D0'),int(time.time()),self.getUniqueInteger())
+        def my_post(url,data): return FakeResponse(204,"")
+        self.patch(requests, 'post', my_post)
+        client = RESTOpenTSDBClient("localhost",4242)
+        m.saveTo(client)
+
+
+class TestOpenTSDBRule(TestCase):
+
+    def test_check(self):
+        # valid case
+        r = OpenTSDBRule(abs(self.getUniqueInteger()), level=1, order=0, type="METRIC", description="Split the metric on periods", separator= "\\.")
+
+        # tree, level, order not positive ints
+        self.assertRaises(ValueError,OpenTSDBRule,-abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),type="METRIC")
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),-abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),type="METRIC")
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),-abs(self.getUniqueInteger()),type="METRIC")
+        self.assertRaises(ValueError,OpenTSDBRule,3.1416,abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),type="METRIC")
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),3.1416,abs(self.getUniqueInteger()),type="METRIC")
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),3.1416,type="METRIC")
+
+        # type not in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"] or missing
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),type="RING")
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()))
+
+        # other fields not strings
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC",3)
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC","",3)
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC","","",3)
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC","","","",3)
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC","","","","",3)
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC","","","","","",3)
+        self.assertRaises(ValueError,OpenTSDBRule,abs(self.getUniqueInteger()),0,0,"METRIC","","","","","","",3,3)
+
+    def test_getMap(self):
+        # check the map
+        r = OpenTSDBRule(abs(self.getUniqueInteger()), level=1, order=0, type="METRIC", description="Split the metric on periods", separator= "\\.")
+        expected = {'type': 'METRIC', 'description': 'Split the metric on periods', 'level': 1, 'regexGroupIdx': 0, 'treeId': 1, 'separator': '\\.', 'order': 0}
+        self.assertEqual(expected,r.getMap())
+
+    def test_client(self):
+        # use the client... this should just work.
+        r = OpenTSDBRule(abs(self.getUniqueInteger()), level=1, order=0, type="METRIC", description="Split the metric on periods", separator= "\\.")
+        # saveTo
+        def my_post(url,data): return FakeResponse(200,json.dumps(r.getMap()))
+        self.patch(requests, 'post', my_post)
+        client = RESTOpenTSDBClient("localhost",4242)
+        r.saveTo(client)
+        # delete
+        def my_delete(url,data): return FakeResponse(204,"")
+        self.patch(requests, 'delete', my_delete)
+        client = RESTOpenTSDBClient("localhost",4242)
+        r.delete(client)
+
+class TestOpenTSDBTreeDefinition(TestCase):
+
+    def test_check(self):
+        # typical example
+        td = OpenTSDBTreeDefinition(self.getUniqueString(), self.getUniqueString(), self.getUniqueString())
+        # full example with rules
+        rules = {
+                    "0": {
+                        "0": {
+                            "type": "TAGK",
+                            "field": "host",
+                            "regex": "",
+                            "separator": "",
+                            "description": "Hostname rule",
+                            "notes": "",
+                            "level": 0,
+                            "order": 0,
+                            "treeId": 1,
+                            "customField": "",
+                            "regexGroupIdx": 0,
+                            "displayFormat": ""
+                        }
+                    },
+                    "1": {
+                        "0": {
+                            "type": "METRIC",
+                            "field": "",
+                            "regex": "",
+                            "separator": "",
+                            "description": "",
+                            "notes": "Metric rule",
+                            "level": 1,
+                            "order": 0,
+                            "treeId": 1,
+                            "customField": "",
+                            "regexGroupIdx": 0,
+                            "displayFormat": ""
+                        }
+                    }
+                }
+        td = OpenTSDBTreeDefinition(self.getUniqueString(), self.getUniqueString(), self.getUniqueString(),rules=rules, created=int(time.time()), treeId=self.getUniqueInteger())
+
+    def test_getMap(self):
+        td = OpenTSDBTreeDefinition("name","description","notes",rules={}, created=1469546577, treeId=1)
+        expected = {'name': 'name', 'created': 1469546577, 'rules': {}, 'notes': 'notes', 'enabled': False, 'treeId': 1, 'strictMatch': False, 'storeFailures': False, 'description': 'description'}
+        self.assertEqual(expected,td.getMap())
+        rules = {
+                    "0": {
+                        "0": {
+                            "type": "TAGK",
+                            "field": "host",
+                            "regex": "",
+                            "separator": "",
+                            "description": "Hostname rule",
+                            "notes": "",
+                            "level": 0,
+                            "order": 0,
+                            "treeId": 1,
+                            "customField": "",
+                            "regexGroupIdx": 0,
+                            "displayFormat": ""
+                        }
+                    },
+                    "1": {
+                        "0": {
+                            "type": "METRIC",
+                            "field": "",
+                            "regex": "",
+                            "separator": "",
+                            "description": "",
+                            "notes": "Metric rule",
+                            "level": 1,
+                            "order": 0,
+                            "treeId": 1,
+                            "customField": "",
+                            "regexGroupIdx": 0,
+                            "displayFormat": ""
+                        }
+                    }
+                }
+        name=self.getUniqueString()
+        description=self.getUniqueString()
+        notes=self.getUniqueString()
+        treeId=self.getUniqueInteger()
+        created=int(time.time())
+        td = OpenTSDBTreeDefinition(name,description,notes,rules=rules, created=created, treeId=treeId)
+        expected = {'name': name, 'created': created, 'rules': rules, 'notes': notes, 'enabled': False, 'treeId': treeId, 'strictMatch': False, 'storeFailures': False, 'description': description}
+        self.assertEqual(expected,td.getMap())
+
+    def test_client(self):
+        # create
+        td = OpenTSDBTreeDefinition("")
+        client = RESTOpenTSDBClient("localhost",4242)
+        self.assertRaises(ValueError,td.create,client)
+        td = OpenTSDBTreeDefinition(self.getUniqueString(), self.getUniqueString(), self.getUniqueString())
+        client = RESTOpenTSDBClient("localhost",4242)
+        tdmap_before = td.getMap()
+        response = td.getMap()
+        response["created"]=int(time.time())
+        response["treeId"]=self.getUniqueInteger()
+        def my_post(url,data): return FakeResponse(200,json.dumps(response))
+        self.patch(requests, 'post', my_post)
+        td.create(client) # after this, the object must have a created value and a treeId.
+        tdmap_after = td.getMap()
+        for k in tdmap_before:
+            self.assertEqual(tdmap_before[k],tdmap_after[k])
+        self.assertIsNot(tdmap_after["created"],None)
+        self.assertEqual(tdmap_after["created"],response["created"])
+        self.assertEqual(tdmap_after["treeId"],response["treeId"])
+        self.assertRaises(ValueError,td.create,client) # a second call to creates should fail
+        # saveTo
+        td.description = self.getUniqueString() # change the description
+        response = td.getMap()
+        def my_post(url,data): return FakeResponse(200,json.dumps(response))
+        self.patch(requests, 'post', my_post)
+        td.saveTo(client)
+        # delete
+        def my_delete(url,data): return FakeResponse(204,"")
+        self.patch(requests, 'delete', my_delete)
+        client = RESTOpenTSDBClient("localhost",4242)
+        td.delete(client)
+        self.assertEqual(None,td.treeId)
+        self.assertEqual(None,td.created)
+        self.assertEqual({},td.rules)
+
+
+#TODO: test these objects with a test db
 #do nothing here for the following two classes that are 100% interacting with the db.
 #class OpenTSDBTreeBranch:
 #class OpenTSDBTree(OpenTSDBTreeBranch):

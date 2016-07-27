@@ -186,11 +186,12 @@ class OpenTSDBTreeDefinition:
         self.description = description
         self.notes = notes
         self.rules = {}
-        for level,orders in rules.iteritems():
-            ordersdict = {}
-            for order,therule in orders.iteritems():
-                ordersdict[int(order)] = OpenTSDBRule(**therule)
-            self.rules[int(level)] = ordersdict
+        if rules is not None:
+            for level,orders in rules.iteritems():
+                ordersdict = {}
+                for order,therule in orders.iteritems():
+                    ordersdict[order] = OpenTSDBRule(**therule)
+                self.rules[level] = ordersdict
         self.created = created
         self.treeId = treeId
         self.strictMatch = strictMatch
@@ -206,7 +207,7 @@ class OpenTSDBTreeDefinition:
         if self.created is None and self.name is None: return False
         if not (self.name is None or isinstance(self.name,basestring)): return False
         if not (self.description is None or isinstance(self.description,basestring)): return False
-        if not (self.notes is None or isinstance(self.note,basestring)): return False
+        if not (self.notes is None or isinstance(self.notes,basestring)): return False
         if not (self.created is None or isinstance(self.created,int)): return False
         if not (self.treeId is None or isinstance(self.treeId,int)): return False
         if not isinstance(self.strictMatch,bool) : return False
@@ -215,7 +216,7 @@ class OpenTSDBTreeDefinition:
         return True
 
     def rule(self, level, order):
-        return self.rules[level][order]
+        return self.rules[str(level)][str(order)]
 
     def getMap(self):
         myself = self.__dict__
@@ -231,28 +232,34 @@ class OpenTSDBTreeDefinition:
         return self.getMap().__str__()
 
     def create(self,client):
-        if self.name is None:
+        if self.name is None or len(self.name)==0:
             raise ValueError("Tree name should be defined to allow its creation. Is None.\n"+str(self))
         if self.created is not None or self.treeId is not None: 
             raise ValueError("Tree seems to be created already.\n"+str(self))
         myself = self.getMap()
         data = { key:myself.get(key,None) for key in ['name','description','notes','strictMatch','enabled','storeFailures'] }
-        client.create_tree(**data)
+        myself = client.create_tree(**data)
+        self.__init__(**myself)
 
     def saveTo(self,client):
-        client.edit_tree(self.treeId, self.description, self.notes, self.strictMatch, self.enabled, self.storeFailures)
+        myself = client.edit_tree(self.treeId, self.description, self.notes, self.strictMatch, self.enabled, self.storeFailures)
+        self.__init__(**myself)
 
     def delete(self,client):
         client.delete_tree(self.treeId,True)
+        self.treeId = None
+        self.created = None
+        self.rules = {}
+        self.enabled = False
 
 
 class OpenTSDBRule:
 
-    def __init__(self, treeId, level=0, order=0, ruleType=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
+    def __init__(self, treeId, level=0, order=0, type=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
         self.treeId = treeId
         self.level = level
         self.order = order
-        self.ruleType = ruleType
+        self.type = type
         self.description = description
         self.notes = notes
         self.field = field
@@ -269,14 +276,14 @@ class OpenTSDBRule:
         if not (isinstance(self.level,int) and self.level >=0): return False
         if not (isinstance(self.order,int) and self.order >=0): return False
         if not (isinstance(self.regexGroupIdx,int) and self.regexGroupIdx>=0): return False
-        if not self.ruleType is None or not self.ruleType in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"] : return False
-        if not self.description is None or isinstance(self.description,basestring) : return False
-        if not self.notes is None or isinstance(self.notes,basestring) : return False
-        if not self.field is None or isinstance(self.field,basestring) : return False
-        if not self.customField is None or isinstance(self.customField,basestring) : return False
-        if not self.regex is None or isinstance(self.regex,basestring) : return False
-        if not self.separator is None or isinstance(self.separator,basestring) : return False
-        if not self.displayFormat is None or isinstance(self.displayFormat,basestring) : return False
+        if self.type is None or self.type not in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"] : return False
+        if not (self.description is None or isinstance(self.description,basestring)) : return False
+        if not (self.notes is None or isinstance(self.notes,basestring)) : return False
+        if not (self.field is None or isinstance(self.field,basestring)) : return False
+        if not (self.customField is None or isinstance(self.customField,basestring)) : return False
+        if not (self.regex is None or isinstance(self.regex,basestring)) : return False
+        if not (self.separator is None or isinstance(self.separator,basestring)) : return False
+        if not (self.displayFormat is None or isinstance(self.displayFormat,basestring)) : return False
         return True
 
     def getMap(self):

@@ -108,7 +108,7 @@ class RESTOpenTSDBClient:
             else:
                 options +="&"
             options +="sync&sync_timeout=%d"%sync_timeout
-        rawdata = json.dumps(map(lambda x:x.getMap(),measurements))
+        rawData = json.dumps(map(lambda x:x.getMap(),measurements))
         if compress:
             compressedData = zlib.compress(rawData)
             req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options},
@@ -118,7 +118,7 @@ class RESTOpenTSDBClient:
             req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options },
                                 data=rawData )
         #handle the response
-        return process_response(req) #TODO: check what happens when an error 400 occurs.
+        return process_response(req, allow=[200,204,301,400]) #TODO: check what happens when an error 400 occurs.
 
     def get_aggregators(self):
         """Used to get the list of default aggregation functions."""
@@ -411,7 +411,7 @@ class RESTOpenTSDBClient:
     def edit_tree(self, treeId, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
         """Using this method, you can edit most of the fields for an existing tree. A successful request will return the modified tree object."""
 
-        checkArguments(inspect.currentframe(), {'treeId':int, 'description':basestring, 'notes':basestring, strictMatch:bool, 'enabled':bool, 'storeFailures':bool})
+        checkArguments(inspect.currentframe(), {'treeId':int, 'description':basestring, 'notes':basestring, 'strictMatch':bool, 'enabled':bool, 'storeFailures':bool})
 
         theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
@@ -522,24 +522,24 @@ class RESTOpenTSDBClient:
                            data = json.dumps(theData))
         return OpenTSDBRule(**process_response(req))
 
-    def set_tree_rule(self, treeId, level=0, order=0, ruleType=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
+    def set_tree_rule(self, treeId, level=0, order=0, type=None, description=None, notes=None, field=None, customField=None, regex=None, separator=None, regexGroupIdx=0, displayFormat=None):
         """allows for easy modification of a single rule in the set.
            You can create a new rule or edit an existing rule. New rules require a type value. 
            Existing trees require a valid treeId ID and any fields that require modification. 
            A successful request will return the modified rule object. 
            Note that if a rule exists at the given level and order, any changes will be merged with or overwrite the existing rule."""
 
-        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int, 'ruleType':basestring, 'description':basestring, 
+        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int, 'type':basestring, 'description':basestring, 
                                                 'notes':basestring, 'field':basestring, 'customField':basestring, 'regex':basestring, 
                                                 'separator':basestring, 'regexGroupIdx':int, 'displayFormat':basestring},
-                                               {'ruleType':lambda x:x in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"], 'regexGroupIdx':lambda x: x>=0})
+                                               {'type':lambda x:x in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"], 'regexGroupIdx':lambda x: x>=0})
 
-        theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx, "type":ruleType, "description":description, 
+        theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx, "type":type, "description":description, 
                     "notes":notes, "field":field, "customField":customField, "regex":regex, "separator":separator, "displayFormat":displayFormat }
         theData = { k:v for k,v in theData.iteritems() if v is not None }
         req = requests.post(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
-        return process_response(req)
+        return OpenTSDBRule(**process_response(req,allow=[200,204,301,304]))
 
     def delete_tree_rule(self, treeId, level=0, order=0, deleteAll=False):
         """Using the DELETE method will remove a rule from a tree.
@@ -555,5 +555,5 @@ class RESTOpenTSDBClient:
             theData = { "treeId":treeId, "level":level, "order":order }
             req = requests.delete(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                                   data = json.dumps(theData))
-	return process_response(req)
+	return process_response(req, allow=[204])
 
