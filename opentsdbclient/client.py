@@ -14,9 +14,11 @@ import templates
 from opentsdberrors import checkErrors, OpenTSDBError
 from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
 
-#TODO: introduce a Response class
+# TODO: introduce a Response class
 # it should give access to the (error) code, the response content and the error content.
 # right now, we have the supposedly interesting part but much is hidden.
+
+# TODO: implement /api/annotation/bulk
 
 def checkArg(value, thetype, NoneAllowed=False, typeErrorMessage="Type mismatch", valueCheck=None, valueErrorMessage="Value error"):
     """check a single argument."""

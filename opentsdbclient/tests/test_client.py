@@ -1,6 +1,7 @@
 from testtools import TestCase
 from client import RESTOpenTSDBClient
-from opentsdbobjects import OpenTSDBMeasurement, OpenTSDBTimeSeries
+from opentsdbobjects import OpenTSDBMeasurement, OpenTSDBTimeSeries, OpenTSDBAnnotation
+from opentsdberrors import OpenTSDBError
 import uuid
 import time
 
@@ -71,8 +72,6 @@ class TestClientServer(TestCase):
         for std in ['sum', 'min', 'avg', 'dev', 'max', 'count']:
             self.assertIn(std,a)
 
-    # create content in the db
-
     def test_assign_uid(self):
         if self.version is not 2: self.skipTest("No server running")
         # nb: this will assign a uid to a random tagk at least.
@@ -107,41 +106,87 @@ class TestClientServer(TestCase):
         meas = OpenTSDBMeasurement(ts,int(time.time()),10)
         response = self.client.put_measurements([meas], compress=True)
 
-    # annotations (R/W)
-    
     def test_annotation(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
+        now = int(time.time())
+        myAnnotation = self.client.set_annotation(now,
+                                                  description="Testing Annotations", 
+                                                  notes="These would be details about the event, the description is just a summary", 
+                                                  custom={"owner": "jdoe","dept": "ops"})
+        expected = {'custom':{"owner": "jdoe","dept": "ops"},'description': u'Testing Annotations',
+                    'notes': u'These would be details about the event, the description is just a summary',
+                    'startTime': now}
+
+        self.assertEqual(expected,myAnnotation.getMap())
+
+        myAnnotation_readback = self.client.get_annotation(now)
+        self.assertEqual(expected,myAnnotation_readback.getMap())
+
+        myAnnotation_modified = self.client.set_annotation(now,description="Testing Annotations - modified")
+        expected["description"]="Testing Annotations - modified"
+        self.assertEqual(expected,myAnnotation_modified.getMap())
+
+        myAnnotation_readback = self.client.get_annotation(now)
+        self.assertEqual(expected,myAnnotation_readback.getMap())
+        
+        response = self.client.delete_annotation(now)
+        self.assertEqual(None,response)
+
+        error = self.assertRaises(OpenTSDBError,self.client.get_annotation,now)
+        self.assertEqual(error.code,404)
+        self.assertEqual(error.message,"Unable to locate annotation in storage")
+
+        # do the same using the annotation object
+
+        now = int(time.time())
+        myAnnotation = OpenTSDBAnnotation(now,
+                                          description="Testing Annotations", 
+                                          notes="These would be details about the event, the description is just a summary", 
+                                          custom={"owner": "jdoe","dept": "ops"})
+        myAnnotation.saveTo(self.client)
+        expected = {'custom':{"owner": "jdoe","dept": "ops"},'description': u'Testing Annotations',
+                    'notes': u'These would be details about the event, the description is just a summary',
+                    'startTime': now}
+        self.assertEqual(expected,myAnnotation.getMap())
+        
+        myAnnotation_readback = OpenTSDBAnnotation(now).loadFrom(self.client)
+        self.assertEqual(expected,myAnnotation_readback.getMap())
+
+        myAnnotation.description = "Testing Annotations - modified"
+        expected["description"]="Testing Annotations - modified"
+        myAnnotation.saveTo(self.client)
+        self.assertEqual(expected,myAnnotation.getMap())
+
+        myAnnotation.delete(self.client)
+        error = self.assertRaises(OpenTSDBError,myAnnotation.loadFrom,self.client)
+        self.assertEqual(error.code,404)
+        self.assertEqual(error.message,"Unable to locate annotation in storage")
 
     # ts meta (R/W) _ includes define_retention
 
     def test_tsmeta(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
 
     # uid meta (R/W)
 
     def test_uidmeta(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
 
     # queries
 
     def test_suggest(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
 
     def test_query(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
 
     def test_search(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
 
     # tree manipulation
 
     def test_tree(self):
         if self.version is not 2: self.skipTest("No server running")
-        pass
+
+        #lots of things to try...
 

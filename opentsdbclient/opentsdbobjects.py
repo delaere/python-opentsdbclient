@@ -7,7 +7,9 @@ class OpenTSDBAnnotation:
     def __init__(self,startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
         self.startTime = startTime
         self.endTime = endTime
+        if self.endTime is 0: self.endTime = None
         self.tsuid = tsuid
+        if self.tsuid is u'': self.tsuid = None
         self.description = description
         self.notes = notes
         self.custom = custom
@@ -17,7 +19,7 @@ class OpenTSDBAnnotation:
     def check(self):
         if not isinstance(self.startTime,int) or self.startTime<0: return False
         if not (self.endTime is None or (isinstance(self.endTime,int) and self.endTime>=self.startTime)): return False
-        if not self.tsuid is None:
+        if not self.tsuid is None and not self.tsuid is u'':
             if not isinstance(self.tsuid,basestring) : return False
             try:
                 int(self.tsuid,16)
@@ -42,12 +44,15 @@ class OpenTSDBAnnotation:
 
     def loadFrom(self,client):
         self.__init__(**client.get_annotation(self.startTime, self.endTime, self.tsuid).getMap())
+        return self
 
     def saveTo(self,client):
-        client.set_annotation(**self.getMap())
+        self.__init__(**client.set_annotation(**self.getMap()).getMap())
+        return self
 
     def delete(self,client):
         client.delete_annotation(self.startTime, self.endTime, self.tsuid)
+        return self
 
 
 class OpenTSDBTimeSeries:
