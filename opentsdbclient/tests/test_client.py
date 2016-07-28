@@ -94,8 +94,18 @@ class TestClientServer(TestCase):
         wrong_meas = OpenTSDBMeasurement(OpenTSDBTimeSeries(str(uuid.uuid4()),{"host": "web01","dc": "lga"}),int(time.time()),18)
         response = self.client.put_measurements([wrong_meas], details=True) # this should fail with 'Unknown metric' error
         self.assertEqual('Unknown metric',response["errors"][0]["error"])
-        #TODO
         # check options: summary, details, sync, compress
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": "web01","dc": "lga"})
+        meas = OpenTSDBMeasurement(ts,int(time.time()),15)
+        response = self.client.put_measurements([meas])
+        self.assertEqual(None,response)
+        response = self.client.put_measurements([meas], summary=True)
+        self.assertEqual(response["success"],1)
+        for i in ["failed", "success"]:
+                self.assertIn(i,response)
+        response = self.client.put_measurements([meas], sync=True, sync_timeout=10000)
+        meas = OpenTSDBMeasurement(ts,int(time.time()),10)
+        response = self.client.put_measurements([meas], compress=True)
 
     # annotations (R/W)
     

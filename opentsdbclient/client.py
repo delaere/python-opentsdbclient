@@ -4,9 +4,10 @@
 # Licensed under the Apache License, Version 2.0 (the "License")
 
 import json
-import zlib
 import requests
 import inspect
+import cStringIO
+import gzip
 
 import opentsdbquery
 import templates
@@ -108,10 +109,13 @@ class RESTOpenTSDBClient:
             options +="sync&sync_timeout=%d"%sync_timeout
         rawData = json.dumps(map(lambda x:x.getMap(),measurements))
         if compress:
-            compressedData = zlib.compress(rawData)
+            fgz = cStringIO.StringIO()
+            with gzip.GzipFile(filename='myfile.json.gz', mode='wb', fileobj=fgz)  as gzip_obj:
+                gzip_obj.write(rawData)
+            compressedData = fgz.getvalue()
             req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options},
                                 data=compressedData,
-                                headers={' Content-Encoding':'gzip'} )
+                                headers={'Content-Encoding':'gzip'} )
         else:
             req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options },
                                 data=rawData )
