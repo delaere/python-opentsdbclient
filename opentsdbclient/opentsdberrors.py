@@ -5,6 +5,7 @@ otsdbErrors = {
 200:"The request completed successfully",
 204:"The server has completed the request successfully but is not returning content in the body. This is primarily used for storing data points as it is not necessary to return data to caller",
 301:"This may be used in the event that an API call has migrated or should be forwarded to another server",
+304:"The call did not provide any data to store.",
 
 # Common error response codes include:
 400:"Information provided by the API user, via a query string or content data, was in error or missing. This will usually include information in the error body about what parameter caused the issue. Correct the data and try again.",

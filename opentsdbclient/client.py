@@ -52,6 +52,8 @@ def checkArguments(frame, argTypes, valueChecks = {},
     _, _, _, defaults  = inspect.getargspec(getattr(values['self'],functionName))
     if defaults is not None:
         defaults = dict(zip(args[::-1],defaults[::-1]))
+    else: 
+        defaults = {}
     for arg in args[1:]:
         value = values[arg]
         theType = argTypes[arg]
@@ -250,7 +252,7 @@ class RESTOpenTSDBClient:
                      "LOOKUP":"/api/search/lookup" }
 
         checkArguments(inspect.currentframe(), {'mode':basestring, 'query':basestring, 'metric':basestring, 'tags':dict, 'limit':int, 'startindex':int, 'useMeta':bool}, 
-                                               {'limit':lambda x:x>0, 'startindex':lambda x:x>0, 'mode':lambda m:m.upper in endpoint} )
+                                               {'limit':lambda x:x>0, 'startindex':lambda x:x>=0, 'mode':lambda m:m.upper() in endpoint} )
 
         if mode.upper() is "LOOKUP":
             tagslist =[]
@@ -259,7 +261,7 @@ class RESTOpenTSDBClient:
             theData = { "metric":metric, "tags": tagslist,  "useMeta": useMeta }
         else:
             theData = { "query":query, "limit":limit, "startindex":startindex }
-        req = requests.post(endpoint[mode.upper()] % {'host': self.host,'port': self.port},
+        req = requests.post(templates.SEARCH_TEMPL % { 'endpoint': endpoint[mode.upper()], 'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
 
@@ -289,35 +291,56 @@ class RESTOpenTSDBClient:
                             data = json.dumps(theData))
         return process_response(req, allow=[200,400])
 
-    def get_tsmeta(self, tsuid):
+    def get_tsmeta(self, tsuid=None, metric=None, tags=None):
         """This endpoint enables searching timeseries meta data information, that is meta data associated with 
            a specific timeseries associated with a metric and one or more tag name/value pairs. 
            Some fields are set by the TSD but others can be set by the user."""
 
-        checkArguments(inspect.currentframe(), {'tsuid':basestring}, {'tsuid':lambda x: int(x,16)})
-
-        req = requests.get(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
-                           data = json.dumps({ "tsuid": tsuid }))
+        if metric is None and tsuid is None:
+            raise ValueError("Either metric or tsuid must be set.")
+        if metric is not None and tsuid is not None:
+            raise ValueError("Only one of metric or tsuid must be set.")
+        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring, 'tags':dict}, {'metric': lambda x: OpenTSDBTimeSeries.checkString, 'tsuid':lambda x: int(x,16)})
+        if tsuid is None:
+            params = { 'm':metric }
+            if tags is not None: params.update(tags)
+        else:
+            params = {'tsuid':tsuid}
+        req = requests.get(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},params = params)
         return process_response(req)
 
-    def set_tsmeta(self, tsuid, description=None, displayName=None, notes=None, custom=None, 
-                                units=None, dataType=None, retention=None, maximum=None, minimum=None):
+    def set_tsmeta(self, tsuid=None, metric=None, description=None, displayName=None, notes=None, custom=None, 
+                                                  units=None, dataType=None, retention=None, maximum=None, minimum=None):
         """This endpoint enables editing timeseries meta data information, that is meta data associated with 
            a specific timeseries associated with a metric and one or more tag name/value pairs. 
            Some fields are set by the TSD but others can be set by the user. 
            Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
 
-        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'description':basestring, 'displayName':basestring, 
+        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring, 'description':basestring, 'displayName':basestring, 
                                                 'notes':basestring, 'custom':dict, 'units':basestring, 'dataType':basestring, 
                                                 'retention':int, 'maximum':float, 'minimum':float}, 
                                                {'tsuid':lambda x: int(x,16), 'retention': lambda x:x>=0} )
 
-        theData = { "tsuid":tsuid, "description":description, "displayName":displayName, "notes":notes, 
-                    "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
-        theData = { k:v for k,v in theData.iteritems() if v is not None }
-        req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
-                            data = json.dumps(theData))
-        return process_response(req)
+        if tsuid is not None:
+            # in that case perform a standard query
+            theData = { "tsuid":tsuid, "description":description, "displayName":displayName, "notes":notes, 
+                        "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
+            theData = { k:v for k,v in theData.iteritems() if v is not None }
+            req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
+                                data = json.dumps(theData))
+            return process_response(req)
+        elif metric is not None:
+            # perform a 2.1 metric style query
+            theData = { "description":description, "displayName":displayName, "notes":notes, 
+                        "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
+            theData = { k:v for k,v in theData.iteritems() if v is not None }
+            params = {'m':metric, 'create':'true'}
+            req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
+                                data = json.dumps(theData),
+                                params = params)
+            return process_response(req)
+        else:
+            raise ValueError("Either the TSUID or a metric query must be set.")
 
     def delete_tsmeta(self, tsuid):
         """This endpoint enables deleting timeseries meta data information.
@@ -353,8 +376,9 @@ class RESTOpenTSDBClient:
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
 
         theData = {"uid":uid, "type":uidtype}
+        print json.dumps(theData)
         req = requests.get(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
-                           data = json.dumps(theData))
+                           params = theData)
         return process_response(req)
 
     def set_uidmeta(self, uid, uidtype, description=None, displayName=None, notes=None, custom=None):

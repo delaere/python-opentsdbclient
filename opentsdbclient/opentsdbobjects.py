@@ -54,7 +54,10 @@ class OpenTSDBAnnotation:
         client.delete_annotation(self.startTime, self.endTime, self.tsuid)
         return self
 
-
+#TODO : implement the interaction with set_tsmeta, get_tsmeta, delete_tsmeta
+# among other things, need a method to construct the metric query string from metric+tags
+# Then, can use an empty set_tsmeta with metric query to get the TSUID. (method to be added)
+# Should also add getter/setter for meta data and adapt getMap() and __str__() to optionnaly return the full object (with uids and metadata)
 class OpenTSDBTimeSeries:
     """A time series is made of a metric and a set of (at least one) tags."""
     #basically a metric + tags

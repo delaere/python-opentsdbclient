@@ -158,6 +158,7 @@ class TestClientServer(TestCase):
         self.assertEqual(expected,myAnnotation.getMap())
 
         myAnnotation.delete(self.client)
+        time.sleep(5)
         error = self.assertRaises(OpenTSDBError,myAnnotation.loadFrom,self.client)
         self.assertEqual(error.code,404)
         self.assertEqual(error.message,"Unable to locate annotation in storage")
@@ -166,6 +167,38 @@ class TestClientServer(TestCase):
 
     def test_tsmeta(self):
         if self.version is not 2: self.skipTest("No server running")
+
+        host = self.getUniqueString()
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
+        ts.assign_uid(self.client) # make sure that the time series is known
+        try:
+            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class if implemented.
+        except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice", tags={'host':host,'dc':'lga'})[0]["tsuid"]
+
+        # set, get, check, delete, check
+        description = self.getUniqueString()
+        displayName = self.getUniqueString()
+        notes = self.getUniqueString()
+        custom = { "from":self.getUniqueString(), "to":self.getUniqueString() }
+        units = self.getUniqueString()
+        dataType = self.getUniqueString()
+        retention = self.getUniqueInteger()
+        minimum = float(self.getUniqueInteger())
+        maximum = float(self.getUniqueInteger())
+        r = self.client.set_tsmeta(tsuid,description=description, displayName=displayName, notes=notes, custom=custom, units=units, dataType=dataType, retention=retention, minimum=minimum, maximum=maximum)
+        self.assertEqual(description, r["description"])
+        r2 = self.client.get_tsmeta(tsuid)
+        self.assertEqual(r,r2)
+        self.assertEqual(None,self.client.delete_tsmeta(tsuid))
+        time.sleep(5)
+        e = self.assertRaises(OpenTSDBError,self.client.get_tsmeta,tsuid)
+        self.assertEqual(e.code,404)
+        self.assertEqual(e.message,"Could not find Timeseries meta data")
+
+        #TODO
+        # repeat using the OpenTSDBTimeSeries class when implemented
+
 
     # uid meta (R/W)
 
