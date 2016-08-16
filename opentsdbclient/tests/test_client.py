@@ -5,14 +5,6 @@ from opentsdberrors import OpenTSDBError
 import uuid
 import time
 
-# there should be two parts:
-# 1. standalone test of the client. See if it makes sense.
-# http://stackoverflow.com/questions/9559963/unit-testing-a-python-app-that-uses-the-requests-library
-# or
-# https://pypi.python.org/pypi/httmock/
-
-# 2. full test with a test server - see how to do that practically, can only work for a precise sequence -> composite tests
-
 class TestClientServer(TestCase):
     """Tests implying a running test server on localhost"""
 
@@ -172,7 +164,7 @@ class TestClientServer(TestCase):
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
         ts.assign_uid(self.client) # make sure that the time series is known
         try:
-            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class if implemented.
+            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
         except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
             tsuid = self.client.get_tsmeta(metric="sys.cpu.nice", tags={'host':host,'dc':'lga'})[0]["tsuid"]
 
@@ -190,33 +182,83 @@ class TestClientServer(TestCase):
         self.assertEqual(description, r["description"])
         r2 = self.client.get_tsmeta(tsuid)
         self.assertEqual(r,r2)
+        self.client.define_retention(tsuid,14)
         self.assertEqual(None,self.client.delete_tsmeta(tsuid))
         time.sleep(5)
         e = self.assertRaises(OpenTSDBError,self.client.get_tsmeta,tsuid)
         self.assertEqual(e.code,404)
         self.assertEqual(e.message,"Could not find Timeseries meta data")
 
-        #TODO
-        # repeat using the OpenTSDBTimeSeries class when implemented
+    def test_OpenTSDBTimeSeries_meta(self):
+        # this combines functionalities from both tsmeta and uidmeta
+        if self.version is not 2: self.skipTest("No server running")
+        host = self.getUniqueString()
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
+        ts.assign_uid(self.client) # make sure that the time series is known
+        try:
+            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
+        except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice", tags={'host':host,'dc':'lga'})[0]["tsuid"]
 
+        # load full metadata, including tsuid
+        ts.loadFrom(self.client)
+        self.assertEqual(tsuid,ts.metadata.tsuid)
+
+        # set, get, check, delete, check
+        description = self.getUniqueString()
+        displayName = self.getUniqueString()
+        notes = self.getUniqueString()
+        custom = { "from":self.getUniqueString(), "to":self.getUniqueString() }
+        units = self.getUniqueString()
+        dataType = self.getUniqueString()
+        retention = self.getUniqueInteger()
+        minimum = float(self.getUniqueInteger())
+        maximum = float(self.getUniqueInteger())
+        ts.metadata.set(description=description, displayName=displayName, notes=notes, custom=custom, units=units, dataType=dataType, retention=retention, minimum=minimum, maximum=maximum)
+        #TODO: also set some uid meta
+        ts.saveTo(self.client)
+        self.assertEqual(description,ts.metadata.description)
+        ts.loadFrom(self.client)
+        self.assertEqual(description,ts.metadata.description)
+        ts.deleteMeta(self.client)
+        time.sleep(5)
+        e = self.assertRaises(OpenTSDBError,self.client.get_tsmeta,tsuid)
+        self.assertEqual(e.code,404)
+        self.assertEqual(e.message,"Could not find Timeseries meta data")
 
     # uid meta (R/W)
 
     def test_uidmeta(self):
         if self.version is not 2: self.skipTest("No server running")
+        # simple test for set/get/delete
+        # the uid can be obtained using tsmeta on a ad hoc TS.
+        # no interaction with any object since the time series uses ts_meta (more complete)
 
     # queries
+    # may go in a separate class with preparation code to fill fake data and termination code to cleanup
 
     def test_suggest(self):
-        if self.version is not 2: self.skipTest("No server running")
-
-    def test_query(self):
         if self.version is not 2: self.skipTest("No server running")
 
     def test_search(self):
         if self.version is not 2: self.skipTest("No server running")
 
-    # tree manipulation
+    def test_query(self):
+        if self.version is not 2: self.skipTest("No server running")
+
+class TestTreeManipulation(TestCase):
+    """Tests implying a running test server on localhost
+       tree manipulation
+       separate class with preparation code to fill fake data and termination code to cleanup"""
+
+    def __init__(self, *args, **kwargs):
+        self.client = RESTOpenTSDBClient("localhost",4242)
+        try:
+            self.version = int(self.client.get_version()["version"].split('.')[0])
+        except:
+            self.version = None
+        super(TestTreeManipulation, self).__init__(*args, **kwargs)
+
 
     def test_tree(self):
         if self.version is not 2: self.skipTest("No server running")

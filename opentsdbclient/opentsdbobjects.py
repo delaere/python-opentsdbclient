@@ -1,3 +1,4 @@
+import copy
 import json
 import string
 import unicodedata as ud
@@ -54,37 +55,133 @@ class OpenTSDBAnnotation:
         client.delete_annotation(self.startTime, self.endTime, self.tsuid)
         return self
 
-#TODO : implement the interaction with set_tsmeta, get_tsmeta, delete_tsmeta
-# among other things, need a method to construct the metric query string from metric+tags
-# Then, can use an empty set_tsmeta with metric query to get the TSUID. (method to be added)
-# Should also add getter/setter for meta data and adapt getMap() and __str__() to optionnaly return the full object (with uids and metadata)
+
+class OpenTSDBTSMeta:
+    """Meta data for a time series, identified by its tsuid"""
+    def __init__(self, **kwargs):
+	self.created = kwargs.get("created",0)
+        self.dataType = kwargs.get("dataType",'')
+        self.description = kwargs.get("description",'')
+        self.displayName = kwargs.get("displayName",'')
+	self.lastReceived = kwargs.get("lastReceived",0)
+        self.min = kwargs.get("min",'NaN')
+        self.max = kwargs.get("max",'NaN')
+        self.notes = kwargs.get("notes",'')
+        self.retention = kwargs.get("retention",0)
+	self.totalDatapoints = kwargs.get("totalDatapoints",0)
+	self.tsuid = kwargs.get("tsuid",'')
+        self.units = kwargs.get("units",'')
+        self.custom = kwargs["custom"] if kwargs.get("custom",None) is not None else {}
+
+    def set(self, **kwargs):
+	self.created = kwargs.get("created",self.created)
+        self.dataType = kwargs.get("dataType",self.dataType)
+        self.description = kwargs.get("description",self.description)
+        self.displayName = kwargs.get("displayName",self.displayName)
+	self.lastReceived = kwargs.get("lastReceived",self.lastReceived)
+        self.min = kwargs.get("min",self.min)
+        self.max = kwargs.get("max",self.max)
+        self.notes = kwargs.get("notes",self.notes)
+        self.retention = kwargs.get("retention",self.retention)
+	self.totalDatapoints = kwargs.get("totalDatapoints",self.totalDatapoints)
+	self.tsuid = kwargs.get("tsuid",self.tsuid)
+        self.units = kwargs.get("units",self.units)
+        self.custom = kwargs.get("custom",self.custom) if kwargs.get("custom",self.custom) is not None else {}
+
+    def getMap(self):
+        return self.__dict__
+
+    def loadFrom(self, client):
+        r = client.get_tsmeta(self, self.tsuid)
+        self.set(**r)
+        return self
+
+    def saveTo(self, client):
+        self.set(**client.set_tsmeta(self.tsuid, None, self.description, self.displayName, self.notes,
+                                     self.custom, self.units, self.dataType, self.retention, self.max, self.min))
+        return self
+
+    def delete(self, client):
+        client.delete_tsmeta(self.tsuid)
+        return self
+
+
+class OpenTSDBUIDMeta:
+    """Meta data for a UID (metric, tagk or tagv)"""
+    def __init__(self, **kwargs):
+	self.name = kwargs.get("name",'')
+	self.uid = kwargs.get("uid",'')
+	self.created = kwargs.get("created",0)
+        self.type = kwargs.get("type",'')
+        self.description = kwargs.get("description",'')
+        self.displayName = kwargs.get("displayName",'')
+        self.notes = kwargs.get("notes",'')
+        self.custom = kwargs["custom"] if kwargs.get("custom",None) is not None else {}
+
+    def set(self, **kwargs):
+	self.name = kwargs.get("name",self.name)
+	self.uid = kwargs.get("uid",self.uid)
+	self.created = kwargs.get("created",self.created)
+        self.type = kwargs.get("type",self.type)
+        self.description = kwargs.get("description",self.description)
+        self.displayName = kwargs.get("displayName",self.displayName)
+        self.notes = kwargs.get("notes",self.notes)
+        self.custom = kwargs.get("custom",self.custom) if kwargs.get("custom",self.custom) is not None else {}
+        
+    def getMap(self):
+        return self.__dict__
+
+    def loadFrom(self, client):
+        r = client.get_uidmeta(self.uid, self.type)
+        self.set(**r)
+        return self
+
+    def saveTo(self, client):
+        self.set(**client.set_uidmeta(self.uid, self.type, self.description, self.displayName, self.notes, self.custom))
+        return self
+
+    def delete(self, client):
+        client.delete_uidmeta(self.uid, self.type)
+        return self
+
+
 class OpenTSDBTimeSeries:
-    """A time series is made of a metric and a set of (at least one) tags."""
+    """A time series is made of a metric and a set of (at least one) tags.
+       It also contains associated meta data for the TS and for the UID components"""
     #basically a metric + tags
-    def __init__(self, metric, tags, tsuid=None):
+    def __init__(self, metric=None, tags=None, tsuid=None):
         self.metric = metric
         self.tags= tags
-        self.tsuid = tsuid
-        self.metric_uid = None
+        # TS meta
+        self.metadata = OpenTSDBTSMeta()
+        self.metadata.tsuid = tsuid
+        # Metric meta
+        self.metric_meta = OpenTSDBUIDMeta()
+        # tags meta
+        self.tagk_meta = {}
+        self.tagv_meta = {}
+        if self.tags is not None:
+            for k,v in self.tags.iteritems():
+                self.tagk_meta[k] = OpenTSDBUIDMeta()
+                self.tagv_meta[v] = OpenTSDBUIDMeta()
+        # check
         if not self.check():
             raise ValueError("Invalid OpenTSDBTimeSeries: \n%s"%str(self))
-        self.tagk_uids = {}
-        self.tagv_uids = {}
-        for k,v in self.tags.iteritems():
-            self.tagk_uids[k] = None
-            self.tagv_uids[v] = None
 
     def check(self):
-        if not OpenTSDBTimeSeries.checkString(self.metric): 
+        if self.metric is None and self.metadata.tsuid is None:
             return False
-        for t,v in self.tags.iteritems():
-            if not ((OpenTSDBTimeSeries.checkString(t) and OpenTSDBTimeSeries.checkString(v))):
+        if self.metric is not None:
+            if not OpenTSDBTimeSeries.checkString(self.metric): 
                 return False
-        if len(self.tags)<1 : return False
-        if not self.tsuid is None:
-            if not isinstance(self.tsuid,basestring) : return False
+            for t,v in self.tags.iteritems():
+                if not ((OpenTSDBTimeSeries.checkString(t) and OpenTSDBTimeSeries.checkString(v))):
+                    return False
+            if len(self.tags)<1 : return False
+        if not self.metadata.tsuid is None:
+            if not isinstance(self.metadata.tsuid,basestring) : return False
             try:
-                int(self.tsuid,16)
+                int(self.metadata.tsuid,16)
             except:
                 return False
         return True
@@ -101,46 +198,131 @@ class OpenTSDBTimeSeries:
                return False
        return True
 
-    def getMap(self):
-        myself = self.__dict__
-        return { k:v for k,v in myself.iteritems() if (v is not None and "_uid" not in k) }
+    def getMap(self, full=False):
+        if full:
+            myself = copy.deepcopy(self.__dict__)
+            for k,v in myself.iteritems():
+                if isinstance(v,(OpenTSDBUIDMeta,OpenTSDBTSMeta)):
+                    myself[k] = v.getMap()
+                if isinstance(v,dict):
+                    for kk,vv in v.iteritems():
+                        if isinstance(vv,(OpenTSDBUIDMeta,OpenTSDBTSMeta)):
+                            myself[k][kk] = vv.getMap()
 
-    def json(self):
-        return json.dumps(self.getMap())
+        else:
+            myself = { "metric":self.metric, "tags":self.tags }
+            if self.metadata.tsuid is not None: myself["tsuid"]=self.metadata.tsuid
+        return myself
+
+    def json(self, full=False):
+        return json.dumps(self.getMap(full))
 
     def __str__(self):
-        return self.getMap().__str__()
+        return self.getMap(full=True).__str__()
+
+    def tsString(self):
+        mystring = []
+        mystring.append(self.metric)
+        mystring.append("{")
+        for k,v in self.tags.iteritems():
+            mystring.append("%s=%s"%(k,v))
+            mystring.append(",")
+        mystring[-1] = "}"
+        return "".join(mystring)
 
     def assign_uid(self,client):
-        self.metric_uid = ""
-        self.tagk_uids = {}
-        self.tagv_uids = {}
+        if self.metadata.tsuid is not None:
+            raise ValueError("UID already assigned.")
+        if self.metric is None or len(self.tags)==0:
+            raise ValueError("Cannot assign uid if metric and tags are not set.")
+        if not(self.metadata.tsuid is None and self.metric is not None and len(self.tags)>0): return
         try:
             r = client.assign_uid([self.metric], list(self.tags.keys()), list(self.tags.values()))
         except OpenTSDBError as e:
             if e.code==400:
-                print e.code, e.message, e.details # for debug
                 r = json.loads(e.details)
             else:
                 raise
         if self.metric in r["metric"]:
-            self.metric_uid = r["metric"][self.metric]
+            self.metric_meta.uid = r["metric"][self.metric]
         elif self.metric in r["metric_errors"]:
-            self.metric_uid = r["metric_errors"][self.metric].split()[-1]
+            self.metric_meta.uid = r["metric_errors"][self.metric].split()[-1]
         else:
             raise OpenTSDBError(400,"assign_uid: unexpected error",json.dumps(r),"")
         for k,v in self.tags.iteritems():
             try:
                 if k in r["tagk"]:
-                    self.tagk_uids[k]=r["tagk"][k]
+                    self.tagk_meta[k].uid = r["tagk"][k]
                 else:
-                    self.tagk_uids[k]=r["tagk_errors"][k].split()[-1]
+                    self.tagk_meta[k].uid = r["tagk_errors"][k].split()[-1]
                 if v in r["tagv"]:
-                    self.tagv_uids[v]=r["tagv"][v]
+                    self.tagv_meta[v].uid = r["tagv"][v]
                 else:
-                    self.tagv_uids[v]=r["tagv_errors"][v].split()[-1]
+                    self.tagv_meta[v].uid = r["tagv_errors"][v].split()[-1]
             except:
                 raise OpenTSDBError(400,"assign_uid: unexpected error",json.dumps(r),"")
+
+
+    def loadFrom(self, client):
+        # call ts_meta to get meta.
+        if self.metadata.tsuid is not None: 
+            try:
+                # if the TS meta is not yet set, it will raise an exception
+                meta = client.get_tsmeta(tsuid=self.metadata.tsuid)
+            except OpenTSDBError:
+                # in that case, create a new meta record from the metric string.
+                meta = client.set_tsmeta(metric=self.tsString())
+        else:
+            r = client.get_tsmeta(metric=self.metric, tags=self.tags)
+            # check the response. 
+            # if the TS meta is not yet set, the response will be empty.
+            if len(r)==0:
+                # no meta was set for this TS, yet. Do it.
+                meta = client.set_tsmeta(metric=self.tsString())
+            elif len(r)>1:
+                raise ValueError("Attempt to load meta for an ambiguous TS. Please specify all the tags.")
+            else:
+                meta = r[0]
+        self.metric_meta.set(**meta["metric"])
+        if self.metric is None or self.tags is None:
+            timeseries = client.search("LOOKUP", metric=self.metric_meta.name)["results"]
+            for ts in timeseries:
+                if ts["tsuid"]==self.metadata.tsuid:
+                    self.metric= ts["metric"]
+                    self.tags = ts["tags"]
+                    break
+        self.metadata.set(**meta)
+        for tags_meta in meta["tags"]:
+            if tags_meta["type"]=="TAGK":
+                if not tags_meta["name"] in self.tagk_meta:
+                    self.tagk_meta[tags_meta["name"]] = OpenTSDBUIDMeta()
+                self.tagk_meta[tags_meta["name"]].set(**tags_meta)
+            else:
+                if not tags_meta["name"] in self.tagk_meta:
+                    self.tagv_meta[tags_meta["name"]] = OpenTSDBUIDMeta()
+                self.tagv_meta[tags_meta["name"]].set(**tags_meta)
+        return self
+
+    def saveTo(self,client):
+        self.metadata.saveTo(client)
+        self.metric_meta.saveTo(client)
+        for _,meta in self.tagk_meta.iteritems():
+            meta.saveTo(client)
+        for _,meta in self.tagv_meta.iteritems():
+            meta.saveTo(client)
+        return self
+
+    def deleteMeta(self, client, recursive=False):
+        self.metadata.delete(client)
+        if recursive:
+            self.metric_meta.delete(client)
+            for k,v in self.tagk_meta.iteritems():
+                v.delete(client)
+                v = OpenTSDBUIDMeta()
+            for k,v in self.tagv_meta.iteritems():
+                v.delete(client)
+                v = OpenTSDBUIDMeta()
+        return self
 
 
 class OpenTSDBMeasurement:

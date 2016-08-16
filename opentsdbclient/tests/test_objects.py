@@ -112,6 +112,22 @@ class TestOpenTSDBTimeSeries(TestCase):
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"},'0000150000070010D0')
         expected = {'tsuid': '0000150000070010D0', 'metric': 'sys.cpu.nice', 'tags': {'host': 'web01', 'dc': 'lga'}}
         self.assertEqual(expected,ts.getMap())
+        # same with full content including default meta
+        expected = {'tagk_meta': {'host': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}, 
+                                  'dc': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}}, 
+                    'tagv_meta': {'lga': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}, 
+                                  'web01': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}}, 
+                    'metric': 'sys.cpu.nice', 
+                    'tags': {'host': 'web01', 'dc': 'lga'}, 
+                    'metric_meta': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}, 
+                    'metadata': {'tsuid': '0000150000070010D0', 'displayName': '', 'lastReceived': 0, 'min': 'NaN', 'dataType': '', 'max': 'NaN', 
+                                 'notes': '', 'created': 0, 'custom': {}, 'totalDatapoints': 0, 'units': '', 'retention': 0, 'description': ''}}
+        self.assertEqual(expected,ts.getMap(True))
+
+    def test_tsString(self):
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"})
+        expected = "sys.cpu.nice{host=web01,dc=lga}"
+        self.assertEqual(expected,ts.tsString())
 
     def test_client(self):
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"})
@@ -130,11 +146,11 @@ class TestOpenTSDBTimeSeries(TestCase):
 	self.patch(requests, 'post', my_post)
 	client = RESTOpenTSDBClient("localhost",4242)
         ts.assign_uid(client)
-        self.assertEqual("000042",ts.metric_uid)
-        self.assertEqual("00001A",ts.tagv_uids["web01"])
-        self.assertEqual("00001B",ts.tagv_uids["lga"])
-        self.assertEqual("000012",ts.tagk_uids["host"])
-        self.assertEqual("000013",ts.tagk_uids["dc"])
+        self.assertEqual("000042",ts.metric_meta.uid)
+        self.assertEqual("00001A",ts.tagv_meta["web01"].uid)
+        self.assertEqual("00001B",ts.tagv_meta["lga"].uid)
+        self.assertEqual("000012",ts.tagk_meta["host"].uid)
+        self.assertEqual("000013",ts.tagk_meta["dc"].uid)
 
         # we now test what happens if some uids are already assigned. Here the metric.
         response = {
@@ -154,11 +170,11 @@ class TestOpenTSDBTimeSeries(TestCase):
 	self.patch(requests, 'post', my_post)
 	client = RESTOpenTSDBClient("localhost",4242)
         ts.assign_uid(client)
-        self.assertEqual("000042",ts.metric_uid)
-        self.assertEqual("00001A",ts.tagv_uids["web01"])
-        self.assertEqual("00001B",ts.tagv_uids["lga"])
-        self.assertEqual("000012",ts.tagk_uids["host"])
-        self.assertEqual("000013",ts.tagk_uids["dc"])
+        self.assertEqual("000042",ts.metric_meta.uid)
+        self.assertEqual("00001A",ts.tagv_meta["web01"].uid)
+        self.assertEqual("00001B",ts.tagv_meta["lga"].uid)
+        self.assertEqual("000012",ts.tagk_meta["host"].uid)
+        self.assertEqual("000013",ts.tagk_meta["dc"].uid)
 
         # we now test what happens if some uids are already assigned. Here one tag.
         response = {
@@ -180,11 +196,175 @@ class TestOpenTSDBTimeSeries(TestCase):
 	self.patch(requests, 'post', my_post)
 	client = RESTOpenTSDBClient("localhost",4242)
         ts.assign_uid(client)
-        self.assertEqual("000042",ts.metric_uid)
-        self.assertEqual("00001A",ts.tagv_uids["web01"])
-        self.assertEqual("00001B",ts.tagv_uids["lga"])
-        self.assertEqual("0007E5",ts.tagk_uids["host"])
-        self.assertEqual("000013",ts.tagk_uids["dc"])
+        self.assertEqual("000042",ts.metric_meta.uid)
+        self.assertEqual("00001A",ts.tagv_meta["web01"].uid)
+        self.assertEqual("00001B",ts.tagv_meta["lga"].uid)
+        self.assertEqual("0007E5",ts.tagk_meta["host"].uid)
+        self.assertEqual("000013",ts.tagk_meta["dc"].uid)
+
+        # test the loadFrom functionality
+        # case 1: tsuid set
+        ts = OpenTSDBTimeSeries(tsuid = '000005000001000002000002000006')
+        #    1a get_tsmeta works -> returns meta
+        response = {
+            "tsuid": "000005000001000002000002000006",
+            "metric": {
+                "uid": "00002A",
+                "type": "METRIC",
+                "name": "sys.cpu.nice",
+                "description": "System Nice CPU Time",
+                "notes": "",
+                "created": 1350425579,
+                "custom": None,
+                "displayName": ""
+            },
+            "tags": [
+                {
+                    "uid": "000001",
+                    "type": "TAGK",
+                    "name": "host",
+                    "description": "Server Hostname",
+                    "notes": "",
+                    "created": 1350425579,
+                    "custom": None,
+                    "displayName": "host"
+                },
+                {
+                    "uid": "000001",
+                    "type": "TAGV",
+                    "name": "web01",
+                    "description": "Website hosting server",
+                    "notes": "",
+                    "created": 1350425579,
+                    "custom": None,
+                    "displayName": "Web Server 01"
+                }
+            ],
+            "description": "Measures CPU activity",
+            "notes": "",
+            "created": 1350425579,
+            "units": "",
+            "retention": 0,
+            "max": "NaN",
+            "min": "NaN",
+            "custom": {
+                "owner": "Jane Doe",
+                "department": "Operations",
+                "assetTag": "12345"
+            },
+            "displayName": "",
+            "dataType": "absolute",
+            "lastReceived": 1350425590,
+            "totalDatapoints": 12532
+        }
+        reference = {'metadata': {'created': 1350425579,
+                                  'custom': {u'assetTag': u'12345',
+                                             u'department': u'Operations',
+                                             u'owner': u'Jane Doe'},
+                                  'dataType': u'absolute',
+                                  'description': u'Measures CPU activity',
+                                  'displayName': u'',
+                                  'lastReceived': 1350425590,
+                                  'max': u'NaN',
+                                  'min': u'NaN',
+                                  'notes': u'',
+                                  'retention': 0,
+                                  'totalDatapoints': 12532,
+                                  'tsuid': u'000005000001000002000002000006',
+                                  'units': u''},
+                     'metric': 'sys.cpu.nice',
+                     'metric_meta': {'created': 1350425579,
+                                     'custom': {},
+                                     'description': u'System Nice CPU Time',
+                                     'displayName': u'',
+                                     'name': u'sys.cpu.nice',
+                                     'notes': u'',
+                                     'type': u'METRIC',
+                                     'uid': u'00002A'},
+                     'tagk_meta': { 'host': {'created': 1350425579,
+                                            'custom': {},
+                                            'description': u'Server Hostname',
+                                            'displayName': u'host',
+                                            'name': u'host',
+                                            'notes': u'',
+                                            'type': u'TAGK',
+                                            'uid': u'000001'}},
+                     'tags': {'host': 'web01'},
+                     'tagv_meta': {'web01': {'created': 1350425579,
+                                             'custom': {},
+                                             'description': u'Website hosting server',
+                                             'displayName': u'Web Server 01',
+                                             'name': u'web01',
+                                             'notes': u'',
+                                             'type': u'TAGV',
+                                             'uid': u'000001'}}}
+        search_response = {u'totalResults': 1, u'metric': u'*', 
+                           u'results': [{u'tsuid': u'000005000001000002000002000006', u'metric': u'sys.cpu.nice', 
+                                         u'tags': {u'host': u'web01'}}], 
+                           u'startIndex': 0, u'limit': 25, u'time': 25491.0, u'query': u'', u'type': u'LOOKUP'}
+        def my_post(url,data): return FakeResponse(200,json.dumps(search_response)) 
+        def my_get(url,params): return FakeResponse(200,json.dumps(response))
+	self.patch(requests, 'get', my_get)
+	self.patch(requests, 'post', my_post)
+	client = RESTOpenTSDBClient("localhost",4242)
+	ts.loadFrom(client)
+        self.assertEqual(ts.metadata.created,1350425579)
+        self.assertEqual(reference,ts.getMap(full=True))
+        #    1b get_tsmeta fails -> exception -> set_tsmeta returns meta
+        def my_get(url,params): return FakeResponse(404,"")
+        def my_post(url,data,params): return FakeResponse(200,json.dumps(response))
+	self.patch(requests, 'get', my_get)
+	self.patch(requests, 'post', my_post)
+	client = RESTOpenTSDBClient("localhost",4242)
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"},'0000150000070010D0')
+	ts.loadFrom(client)
+        self.assertEqual(reference,ts.getMap(full=True))
+        # case 2: metric and tags set
+        #    2a get_ts_meta returns one entry -> meta
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"})
+        response = [ response ]
+        def my_get(url,params): return FakeResponse(200,json.dumps(response))
+	self.patch(requests, 'get', my_get)
+	client = RESTOpenTSDBClient("localhost",4242)
+	ts.loadFrom(client)
+        self.assertEqual(ts.metadata.created,1350425579)
+        self.assertEqual(reference,ts.getMap(full=True))
+        #    2b get_ts_meta returns no entry -> set_tsmeta with query string -> meta
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"})
+        get_response = [ ]
+        post_response = response[0]
+        def my_get(url,params): return FakeResponse(200,json.dumps(get_response))
+        def my_post(url,data,params): return FakeResponse(200,json.dumps(post_response))
+	self.patch(requests, 'get', my_get)
+	self.patch(requests, 'post', my_post)
+	client = RESTOpenTSDBClient("localhost",4242)
+	ts.loadFrom(client)
+        self.assertEqual(ts.metadata.created,1350425579)
+        self.assertEqual(reference,ts.getMap(full=True))
+        #    2c get_ts_meta returns two entries -> exception
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"})
+        get_response = [post_response, post_response]
+        def my_get(url,params): return FakeResponse(200,json.dumps(get_response))
+        self.patch(requests, 'get', my_get)
+        client = RESTOpenTSDBClient("localhost",4242)
+        self.assertRaises(ValueError,ts.loadFrom,client)
+        # saveTo - just check that it runs.
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"},'000005000001000002000002000006')
+        ts.metric_meta.uid = "00002A"
+        ts.metric_meta.type = "metric"
+        ts.tagk_meta["host"].uid = "000001"
+        ts.tagk_meta["host"].type = "tagk"
+        ts.tagv_meta["web01"].uid = "000001"
+        ts.tagv_meta["web01"].type = "tagv"
+        def my_post(url,data,params=None): return FakeResponse(200,json.dumps({"tsuid":'000005000001000002000002000006', "uid":"00002A", "type":"METRIC"}))
+	self.patch(requests, 'post', my_post) # just enough to make it run, but meaningless
+        client = RESTOpenTSDBClient("localhost",4242)
+        ts.saveTo(client)
+        # deleteMeta - just check that it runs.
+        def my_delete(url,data): return FakeResponse(204,"")
+        self.patch(requests, 'delete', my_delete)
+        client = RESTOpenTSDBClient("localhost",4242)
+        ts.deleteMeta(client,True)
 
 
 class TestOpenTSDBMeasurement(TestCase):

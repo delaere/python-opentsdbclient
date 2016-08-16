@@ -12,7 +12,7 @@ import gzip
 import opentsdbquery
 import templates
 from opentsdberrors import checkErrors, OpenTSDBError
-from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
+from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTSMeta, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
 
 # TODO: introduce a Response class
 # it should give access to the (error) code, the response content and the error content.
@@ -210,7 +210,7 @@ class RESTOpenTSDBClient:
            the entire string passed in the query on the first characters of the stored data. """
 
         checkArguments(inspect.currentframe(), {'datatype':basestring, 'query':basestring, 'maxResults':int}, 
-                                               {'maxResults':lambda m:m>0, 'datatype':lambda d: d in ['metrics', 'tagk' , 'tagv']} )
+                                               {'maxResults':lambda m:m>0, 'datatype':lambda d: d.upper() in ['METRICS', 'TAGK' , 'TAGV']} )
 
         params = { "type":datatype }
         if query is not None: params["q"]=query
@@ -318,7 +318,7 @@ class RESTOpenTSDBClient:
 
         checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring, 'description':basestring, 'displayName':basestring, 
                                                 'notes':basestring, 'custom':dict, 'units':basestring, 'dataType':basestring, 
-                                                'retention':int, 'maximum':float, 'minimum':float}, 
+                                                'retention':int, 'maximum':(float,basestring), 'minimum':(float,basestring)}, 
                                                {'tsuid':lambda x: int(x,16), 'retention': lambda x:x>=0} )
 
         if tsuid is not None:
@@ -373,10 +373,9 @@ class RESTOpenTSDBClient:
            tag names and tag values. Some fields are set by the TSD but others can be set by the user. """
 
         checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring}, 
-                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
+                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
         theData = {"uid":uid, "type":uidtype}
-        print json.dumps(theData)
         req = requests.get(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
                            params = theData)
         return process_response(req)
@@ -387,9 +386,9 @@ class RESTOpenTSDBClient:
            Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
 
         checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring, 'description':basestring, 'displayName':basestring, 'notes':basestring, 'custom':dict}, 
-                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
+                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
-        theData = { "uid":uid, "description":description, "displayName":displayName, "notes":notes, "custom":custom}
+        theData = { "uid":uid, "type":uidtype, "description":description, "displayName":displayName, "notes":notes, "custom":custom}
         theData = { k:v for k,v in theData.iteritems() if v is not None }
         req = requests.post(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
@@ -399,7 +398,7 @@ class RESTOpenTSDBClient:
         """This endpoint enables deleting UID meta data information, that is meta data associated with metrics, tag names and tag values."""
 
         checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring}, 
-                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x in ["metric", "tagk", "tagv"]})
+                                               {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
         theData = {"uid":uid, "type":uidtype}
         req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
