@@ -63,7 +63,7 @@ class TestOpenTSDBMetricSubQuery(TestCase):
         # this is a query with everything
         filters = [OpenTSDBFilter("wildcard","host","*",True),OpenTSDBFilter("literal_or","dc","lga|lga1|lga2")]
         q = OpenTSDBMetricSubQuery("sum", "sys.cpu.0", rate=True, filters=filters, counterMax=100, resetValue=1000, downsample="30m-avg-nan")
-        expected = {'aggregator': 'sum', 'metric': 'sys.cpu.0', 'explicitTags': False, 'rate': True, 
+        expected = {'aggregator': 'sum', 'metric': 'sys.cpu.0', 'rate': True, #'explicitTags': False,
                     'filters': [{'filter': '*', 'type': 'wildcard', 'groupBy': True, 'tagk': 'host', "groupBy":True}, 
                                 {'filter': 'lga|lga1|lga2', 'type': 'literal_or', 'groupBy': False, 'tagk': 'dc'}], 
                     'rateOptions': {'counter': True, 'counterMax': 100, 'resetValue': 1000}}
@@ -74,7 +74,7 @@ class TestOpenTSDBMetricSubQuery(TestCase):
 
         filters = [OpenTSDBFilter("wildcard","host","*",True),OpenTSDBFilter("literal_or","dc","lga|lga1|lga2")]
         q = OpenTSDBMetricSubQuery("sum", "sys.cpu.0", rate=False, filters=filters, counterMax=100, resetValue=1000, downsample="30m-avg-nan")
-        expected = {'aggregator': 'sum', 'metric': 'sys.cpu.0', 'explicitTags': False, 
+        expected = {'aggregator': 'sum', 'metric': 'sys.cpu.0', #'explicitTags': False, 
                     'filters': [{'filter': '*', 'type': 'wildcard', 'groupBy': True, 'tagk': 'host', "groupBy":True}, 
                                 {'filter': 'lga|lga1|lga2', 'type': 'literal_or', 'groupBy': False, 'tagk': 'dc'}]}
         
@@ -83,7 +83,8 @@ class TestOpenTSDBMetricSubQuery(TestCase):
         # minimal
 
         q = OpenTSDBMetricSubQuery("sum", "sys.cpu.0")
-        expected = {'aggregator': 'sum', 'metric': 'sys.cpu.0', 'explicitTags': False}
+        expected = {'aggregator': 'sum', 'metric': 'sys.cpu.0', #'explicitTags': False
+                   }
 
         self.assertEqual(expected,q.getMap())
 
@@ -115,7 +116,7 @@ class TestOpenTSDBQuery(TestCase):
 
         q.getMap()
         expected={'start': 1356998400, 'end': 1356998460, 'showSummary': False, 
-                  'queries': [{'aggregator': 'sum', 'metric': 'sys.cpu.0', 'explicitTags': False, 'rate': True, 
+                  'queries': [{'aggregator': 'sum', 'metric': 'sys.cpu.0', 'rate': True, #'explicitTags': False,
                                'filters': [{'filter': '*', 'type': 'wildcard', 'groupBy': False, 'tagk': 'host'}, 
                                            {'filter': 'lga', 'type': 'literal_or', 'groupBy': False, 'tagk': 'dc'}], 'rateOptions': {'counter': True}}, 
                               {'tsuids': ['000001000002000042', '000001000002000043'], 'aggregator': 'sum'}], 

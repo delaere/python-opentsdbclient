@@ -1,9 +1,11 @@
 from testtools import TestCase
 from client import RESTOpenTSDBClient
 from opentsdbobjects import OpenTSDBMeasurement, OpenTSDBTimeSeries, OpenTSDBAnnotation
+from opentsdbquery import OpenTSDBtsuidSubQuery, OpenTSDBMetricSubQuery, OpenTSDBQueryLast, OpenTSDBQuery, OpenTSDBFilter
 from opentsdberrors import OpenTSDBError
 import uuid
 import time
+import random
 
 class TestClientServer(TestCase):
     """Tests implying a running test server on localhost"""
@@ -303,7 +305,54 @@ class TestClientServer(TestCase):
 
     def test_query(self):
         if self.version is not 2: self.skipTest("No server running")
-        #TODO implement test_query
+        # prepare some data
+        host = self.getUniqueString()
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
+        ts.assign_uid(self.client) # make sure that the time series is known
+        try:
+            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
+        except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
+        meas = [OpenTSDBMeasurement(ts,int(time.time())-200+i,random.random()) for i in range(0,100)]
+        #response = self.client.put_measurements(meas) #TODO this will fail with chunked request, but the response decoder fails -> fix this
+        response = self.client.put_measurements(meas, compress=True) 
+        time.sleep(5)
+
+        # prepare a query
+        subquery = OpenTSDBtsuidSubQuery("sum",[tsuid])
+        theQuery = OpenTSDBQuery([subquery],'1h-ago',showTSUIDs=True, showSummary=True, showQuery=True)
+        # run!
+        r = self.client.query(theQuery)
+        results = r[0]["dps"]
+        # test
+        for m in meas: 
+            self.assertIn(str(m.timestamp),results)
+            self.assertTrue(float(results.get(str(m.timestamp),0))-m.value<1e-6)
+
+        # repeat with a metric query
+        filters = [OpenTSDBFilter("literal_or","host",host),OpenTSDBFilter("literal_or","dc","lga")]
+        subquery = OpenTSDBMetricSubQuery("sum","sys.cpu.nice",filters=filters)
+        theQuery = OpenTSDBQuery([subquery],'1h-ago',showTSUIDs=True, showSummary=True, showQuery=True)
+        r2 = self.client.query(theQuery)
+        results2 = r[0]["dps"]
+        self.assertEqual(results,results2)
+
+        ## TODO repeat with an exp query - 2.3 only...
+        #timeSection = OpenTSDBExpQuery.timeSection("sum", "1h-ago")
+        #filters = [OpenTSDBExpQuery.filters("id0",[OpenTSDBFilter("literal_or","host",host),OpenTSDBFilter("literal_or","dc","lga")])]
+        #metrics = [OpenTSDBExpQuery.metric("cpunice","id0","sys.cpu.nice")]
+        #expressions = [OpenTSDBExpQuery.expression("e1","cpunice*2")]
+        #outputs = [OpenTSDBExpQuery.output("cpunice","CPU nice"),OpenTSDBExpQuery.output("e1","CPU nice twice")]
+        #theQuery = OpenTSDBExpQuery(timeSection, filters, metrics, expressions, outputs)
+        #r3 = elf.client.query(theQuery)
+        ## decode and test
+
+        # last query
+        querylast = OpenTSDBQueryLast(metrics=[],tsuids=[tsuid],backScan=1,resolveNames=True)
+        r = self.client.query(querylast)
+        self.assertEqual(r[0]["timestamp"],meas[-1].timestamp*1000)
+        self.assertTrue(float(r[0]["value"])-meas[-1].value<1e-6)
+
 
 #TODO implement this later
 class TestTreeManipulation(TestCase):

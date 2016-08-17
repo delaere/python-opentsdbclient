@@ -60,8 +60,8 @@ class OpenTSDBQuery:
         if len(self.subqueries)<1:
             raise ValueError("Requires at least one subquery")
         for q in self.subqueries:
-            if not isinstance(q,OpenTSDBMetricSubQuery) and not isinstance(q,OpenTSDBtsuidSubQuery):
-                raise TypeError("Subqueries must be either OpenTSDBMetricSubQuery or OpenTSDBtsuidSubQuery")
+            if not isinstance(q,(OpenTSDBMetricSubQuery,OpenTSDBtsuidSubQuery)):
+                raise TypeError("Subqueries must be either OpenTSDBMetricSubQuery or OpenTSDBtsuidSubQuery.")
             else:
                 q.check()
 
@@ -83,7 +83,7 @@ class OpenTSDBMetricSubQuery:
     def getMap(self):
         myself = { "aggregator": self.aggregator,
                    "metric": self.metric,
-                   "explicitTags": self.explicitTags
+#                   "explicitTags": self.explicitTags # TODO: fix: This is only in opentsdb 2.3 
                  }
         if self.rate:
             myself["rate"] = self.rate
@@ -136,7 +136,6 @@ class OpenTSDBtsuidSubQuery:
             int(i,16)
 
 
-
 class OpenTSDBFilter:
     """ OpenTSDB includes expanded and plugable filters across tag key and value combinations. 
         Multiple filters on the same tag key are allowed and when processed, they are ANDed together 
@@ -162,6 +161,7 @@ class OpenTSDBFilter:
             not isinstance(self.filterExpression,basestring) or
             not isinstance(self.groupBy,bool)):
                raise TypeError("OpenTSDBFilter type mismatch")
+
 
 class OpenTSDBExpQuery:
     """Allows for querying data using expressions. The query is broken up into different sections.
