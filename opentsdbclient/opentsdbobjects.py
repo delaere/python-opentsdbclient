@@ -156,14 +156,14 @@ class OpenTSDBTimeSeries:
         self.metadata = OpenTSDBTSMeta()
         self.metadata.tsuid = tsuid
         # Metric meta
-        self.metric_meta = OpenTSDBUIDMeta()
+        self.metric_meta = OpenTSDBUIDMeta(type="METRIC", name=metric)
         # tags meta
         self.tagk_meta = {}
         self.tagv_meta = {}
         if self.tags is not None:
             for k,v in self.tags.iteritems():
-                self.tagk_meta[k] = OpenTSDBUIDMeta()
-                self.tagv_meta[v] = OpenTSDBUIDMeta()
+                self.tagk_meta[k] = OpenTSDBUIDMeta(type="TAGK", name=k)
+                self.tagv_meta[v] = OpenTSDBUIDMeta(type="TAGV", name=v)
         # check
         if not self.check():
             raise ValueError("Invalid OpenTSDBTimeSeries: \n%s"%str(self))
@@ -273,14 +273,14 @@ class OpenTSDBTimeSeries:
                 # in that case, create a new meta record from the metric string.
                 meta = client.set_tsmeta(metric=self.tsString())
         else:
-            r = client.get_tsmeta(metric=self.metric, tags=self.tags)
+            r = client.get_tsmeta(metric=self.tsString())
             # check the response. 
             # if the TS meta is not yet set, the response will be empty.
             if len(r)==0:
                 # no meta was set for this TS, yet. Do it.
                 meta = client.set_tsmeta(metric=self.tsString())
             elif len(r)>1:
-                raise ValueError("Attempt to load meta for an ambiguous TS. Please specify all the tags.")
+                raise ValueError("Attempt to load meta for an ambiguous TS. Please specify all the tags.",r)
             else:
                 meta = r[0]
         self.metric_meta.set(**meta["metric"])
@@ -318,10 +318,10 @@ class OpenTSDBTimeSeries:
             self.metric_meta.delete(client)
             for k,v in self.tagk_meta.iteritems():
                 v.delete(client)
-                v = OpenTSDBUIDMeta()
+                v = OpenTSDBUIDMeta(type="TAGV", name=k)
             for k,v in self.tagv_meta.iteritems():
                 v.delete(client)
-                v = OpenTSDBUIDMeta()
+                v = OpenTSDBUIDMeta(type="TAGK", name=k)
         return self
 
 

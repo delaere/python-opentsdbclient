@@ -291,7 +291,7 @@ class RESTOpenTSDBClient:
                             data = json.dumps(theData))
         return process_response(req, allow=[200,400])
 
-    def get_tsmeta(self, tsuid=None, metric=None, tags=None):
+    def get_tsmeta(self, tsuid=None, metric=None):
         """This endpoint enables searching timeseries meta data information, that is meta data associated with 
            a specific timeseries associated with a metric and one or more tag name/value pairs. 
            Some fields are set by the TSD but others can be set by the user."""
@@ -300,10 +300,9 @@ class RESTOpenTSDBClient:
             raise ValueError("Either metric or tsuid must be set.")
         if metric is not None and tsuid is not None:
             raise ValueError("Only one of metric or tsuid must be set.")
-        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring, 'tags':dict}, {'metric': lambda x: OpenTSDBTimeSeries.checkString, 'tsuid':lambda x: int(x,16)})
+        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring}, {'metric': lambda x: OpenTSDBTimeSeries.checkString, 'tsuid':lambda x: int(x,16)})
         if tsuid is None:
             params = { 'm':metric }
-            if tags is not None: params.update(tags)
         else:
             params = {'tsuid':tsuid}
         req = requests.get(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},params = params)
@@ -401,7 +400,7 @@ class RESTOpenTSDBClient:
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
         theData = {"uid":uid, "type":uidtype}
-        req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
+        req = requests.delete(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(theData))
         return process_response(req)
 

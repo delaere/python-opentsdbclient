@@ -113,13 +113,13 @@ class TestOpenTSDBTimeSeries(TestCase):
         expected = {'tsuid': '0000150000070010D0', 'metric': 'sys.cpu.nice', 'tags': {'host': 'web01', 'dc': 'lga'}}
         self.assertEqual(expected,ts.getMap())
         # same with full content including default meta
-        expected = {'tagk_meta': {'host': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}, 
-                                  'dc': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}}, 
-                    'tagv_meta': {'lga': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}, 
-                                  'web01': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}}, 
+        expected = {'tagk_meta': {'host': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': 'TAGK', 'name': 'host'}, 
+                                  'dc': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': 'TAGK', 'name': 'dc'}}, 
+                    'tagv_meta': {'lga': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': 'TAGV', 'name': 'lga'}, 
+                                  'web01': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': 'TAGV', 'name': 'web01'}}, 
                     'metric': 'sys.cpu.nice', 
                     'tags': {'host': 'web01', 'dc': 'lga'}, 
-                    'metric_meta': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': '', 'name': ''}, 
+                    'metric_meta': {'displayName': '', 'description': '', 'created': 0, 'notes': '', 'custom': {}, 'uid': '', 'type': 'METRIC', 'name': 'sys.cpu.nice'}, 
                     'metadata': {'tsuid': '0000150000070010D0', 'displayName': '', 'lastReceived': 0, 'min': 'NaN', 'dataType': '', 'max': 'NaN', 
                                  'notes': '', 'created': 0, 'custom': {}, 'totalDatapoints': 0, 'units': '', 'retention': 0, 'description': ''}}
         self.assertEqual(expected,ts.getMap(True))

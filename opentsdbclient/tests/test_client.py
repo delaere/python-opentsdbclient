@@ -166,7 +166,7 @@ class TestClientServer(TestCase):
         try:
             tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
         except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
-            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice", tags={'host':host,'dc':'lga'})[0]["tsuid"]
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
 
         # set, get, check, delete, check
         description = self.getUniqueString()
@@ -189,6 +189,43 @@ class TestClientServer(TestCase):
         self.assertEqual(e.code,404)
         self.assertEqual(e.message,"Could not find Timeseries meta data")
 
+    # uid meta (R/W)
+
+    def test_uidmeta(self):
+        if self.version is not 2: self.skipTest("No server running")
+
+        host = self.getUniqueString()
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
+        ts.assign_uid(self.client) # make sure that the time series is known
+        try:
+            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
+        except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
+
+        # get one uid and its meta from the timeseries
+        uidmeta = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["metric"]
+        uid = uidmeta["uid"]
+
+        # set, get, check, delete, check
+        description = self.getUniqueString()
+        displayName = self.getUniqueString()
+        notes = self.getUniqueString()
+        custom = { "from":self.getUniqueString(), "to":self.getUniqueString() }
+        r = self.client.set_uidmeta(uid, "metric", description=description, displayName=displayName, notes=notes, custom=custom)
+        self.assertEqual(r["description"],description)
+        self.assertEqual(r["displayName"],displayName)
+        self.assertEqual(r["notes"],notes)
+        self.assertEqual(r["custom"],custom)
+        r2 = self.client.get_uidmeta(uid, "metric")
+        self.assertEqual(r2,r)
+        self.client.delete_uidmeta(uid, "metric")
+        time.sleep(5)
+        r3 = self.client.get_uidmeta(uid, "metric")
+        default={"uid":uid,"type":"METRIC","name":"sys.cpu.nice","description":"","notes":"","created":0,"custom":None,"displayName":""}
+        self.assertEqual(default,r3)
+
+    # same using the objects...
+
     def test_OpenTSDBTimeSeries_meta(self):
         # this combines functionalities from both tsmeta and uidmeta
         if self.version is not 2: self.skipTest("No server running")
@@ -198,7 +235,7 @@ class TestClientServer(TestCase):
         try:
             tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
         except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
-            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice", tags={'host':host,'dc':'lga'})[0]["tsuid"]
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
 
         # load full metadata, including tsuid
         ts.loadFrom(self.client)
@@ -215,7 +252,10 @@ class TestClientServer(TestCase):
         minimum = float(self.getUniqueInteger())
         maximum = float(self.getUniqueInteger())
         ts.metadata.set(description=description, displayName=displayName, notes=notes, custom=custom, units=units, dataType=dataType, retention=retention, minimum=minimum, maximum=maximum)
-        #TODO: also set some uid meta
+        ts.tagk_meta["host"].description="The host name"
+        ts.tagk_meta["host"].displayName="hostname"
+        ts.tagv_meta[host].description="A randomly generated hostname"
+        ts.tagv_meta[host].notes="Just for the sake of testing"
         ts.saveTo(self.client)
         self.assertEqual(description,ts.metadata.description)
         ts.loadFrom(self.client)
@@ -225,14 +265,6 @@ class TestClientServer(TestCase):
         e = self.assertRaises(OpenTSDBError,self.client.get_tsmeta,tsuid)
         self.assertEqual(e.code,404)
         self.assertEqual(e.message,"Could not find Timeseries meta data")
-
-    # uid meta (R/W)
-
-    def test_uidmeta(self):
-        if self.version is not 2: self.skipTest("No server running")
-        # simple test for set/get/delete
-        # the uid can be obtained using tsmeta on a ad hoc TS.
-        # no interaction with any object since the time series uses ts_meta (more complete)
 
     # queries
     # may go in a separate class with preparation code to fill fake data and termination code to cleanup
