@@ -302,10 +302,10 @@ class TestOpenTSDBTimeSeries(TestCase):
                            u'results': [{u'tsuid': u'000005000001000002000002000006', u'metric': u'sys.cpu.nice', 
                                          u'tags': {u'host': u'web01'}}], 
                            u'startIndex': 0, u'limit': 25, u'time': 25491.0, u'query': u'', u'type': u'LOOKUP'}
-        def my_post(url,data): return FakeResponse(200,json.dumps(search_response)) 
-        def my_get(url,params): return FakeResponse(200,json.dumps(response))
+        def my_get(url,params): 
+            if "use_meta" in params: return FakeResponse(200,json.dumps(search_response))  
+            else: return FakeResponse(200,json.dumps(response))
 	self.patch(requests, 'get', my_get)
-	self.patch(requests, 'post', my_post)
 	client = RESTOpenTSDBClient("localhost",4242)
 	ts.loadFrom(client)
         self.assertEqual(ts.metadata.created,1350425579)
@@ -570,7 +570,6 @@ class TestOpenTSDBTreeDefinition(TestCase):
         self.assertEqual({},td.rules)
 
 
-#TODO: test these objects with a test db
 #do nothing here for the following two classes that are 100% interacting with the db.
 #class OpenTSDBTreeBranch:
 #class OpenTSDBTree(OpenTSDBTreeBranch):

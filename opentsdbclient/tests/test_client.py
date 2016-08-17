@@ -266,6 +266,8 @@ class TestClientServer(TestCase):
         self.assertEqual(e.code,404)
         self.assertEqual(e.message,"Could not find Timeseries meta data")
 
+    # queries
+
     def test_suggest(self):
         if self.version is not 2: self.skipTest("No server running")
         host = self.getUniqueString()
@@ -284,15 +286,26 @@ class TestClientServer(TestCase):
 
         self.assertIn("sys.cpu.nice",self.client.suggest("metrics","sys"))
 
-    # queries
-    # may go in a separate class with preparation code to fill fake data and termination code to cleanup
-
     def test_search(self):
         if self.version is not 2: self.skipTest("No server running")
+        #limited to /api/search/lookup since others rely on plugins...
+        host = self.getUniqueString()
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
+        ts.assign_uid(self.client) # make sure that the time series is known
+        try:
+            tsuid = self.client.set_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)["tsuid"] #get the tsuid - could be done via the OpenTSDBTimeSeries class
+        except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
+            tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
+
+        r = self.client.search("LOOKUP",metric="sys.cpu.nice",tags={"host": host,"dc": "lga"})
+        reference = {u'tsuid': tsuid, u'metric': u'sys.cpu.nice', u'tags': {u'host': host, u'dc': u'lga'}}
+        self.assertIn(reference,r["results"])
 
     def test_query(self):
         if self.version is not 2: self.skipTest("No server running")
+        #TODO implement test_query
 
+#TODO implement this later
 class TestTreeManipulation(TestCase):
     """Tests implying a running test server on localhost
        tree manipulation

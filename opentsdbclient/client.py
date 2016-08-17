@@ -210,7 +210,7 @@ class RESTOpenTSDBClient:
            the entire string passed in the query on the first characters of the stored data. """
 
         checkArguments(inspect.currentframe(), {'datatype':basestring, 'query':basestring, 'maxResults':int}, 
-                                               {'maxResults':lambda m:m>0, 'datatype':lambda d: d.upper() in ['METRICS', 'TAGK' , 'TAGV']} )
+                                               {'maxResults':lambda m:m>0, 'datatype':lambda d: d in ['metrics', 'tagk' , 'tagv']} )
 
         params = { "type":datatype }
         if query is not None: params["q"]=query
@@ -254,11 +254,26 @@ class RESTOpenTSDBClient:
         checkArguments(inspect.currentframe(), {'mode':basestring, 'query':basestring, 'metric':basestring, 'tags':dict, 'limit':int, 'startindex':int, 'useMeta':bool}, 
                                                {'limit':lambda x:x>0, 'startindex':lambda x:x>=0, 'mode':lambda m:m.upper() in endpoint} )
 
-        if mode.upper() is "LOOKUP":
+        if mode.upper()=="LOOKUP":
             tagslist =[]
             for k,v in tags.iteritems():
                 tagslist.append({ "key":k, "value":v })
             theData = { "metric":metric, "tags": tagslist,  "useMeta": useMeta }
+	    # BEGIN PATCH
+            # there seems to be a bug with OpenTSDB here... use the query instead.
+            def tsString(metric, tags):
+                mystring = []
+                mystring.append(metric)
+                mystring.append("{")
+                for k,v in tags.iteritems():
+                    mystring.append("%s=%s"%(k,v))
+                    mystring.append(",")
+                mystring[-1] = "}"
+                return "".join(mystring)
+            params = { "m":tsString(metric,tags), "use_meta":useMeta }
+            req = requests.get(templates.SEARCH_TEMPL % { 'endpoint': endpoint[mode.upper()], 'host': self.host,'port': self.port }, params = params)
+            return process_response(req)
+	    # END PATCH
         else:
             theData = { "query":query, "limit":limit, "startindex":startindex }
         req = requests.post(templates.SEARCH_TEMPL % { 'endpoint': endpoint[mode.upper()], 'host': self.host,'port': self.port},
