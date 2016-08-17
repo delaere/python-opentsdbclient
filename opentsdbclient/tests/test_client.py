@@ -266,11 +266,26 @@ class TestClientServer(TestCase):
         self.assertEqual(e.code,404)
         self.assertEqual(e.message,"Could not find Timeseries meta data")
 
-    # queries
-    # may go in a separate class with preparation code to fill fake data and termination code to cleanup
-
     def test_suggest(self):
         if self.version is not 2: self.skipTest("No server running")
+        host = self.getUniqueString()
+        ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
+        ts.assign_uid(self.client) # make sure that the time series is known
+
+        allhosts = self.client.suggest("tagv",host[0])
+        thishost= self.client.suggest("tagv",host)
+        somehosts = self.client.suggest("tagv",host[:len(host)/2])
+
+        self.assertIn(host,allhosts)
+        self.assertIn(host,thishost)
+        self.assertIn(host,somehosts)
+        
+        self.assertIn("host",self.client.suggest("tagk","h"))
+
+        self.assertIn("sys.cpu.nice",self.client.suggest("metrics","sys"))
+
+    # queries
+    # may go in a separate class with preparation code to fill fake data and termination code to cleanup
 
     def test_search(self):
         if self.version is not 2: self.skipTest("No server running")
