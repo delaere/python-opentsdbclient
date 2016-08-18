@@ -245,7 +245,6 @@ class OpenTSDBExpQuery:
     @staticmethod
     def timeSection(aggregator, start, end=None, downsampler=None, rate=False):
         """The time section is required. It affects the time range and optional reductions for all metrics requested."""
-        #TODO int and strings are both valid for start and end. Will have to test with the db since the doc is self-contradictory.
         if not isinstance(start,(int,basestring)) or not isinstance(aggregator, basestring) or not isinstance(rate, bool):
             raise TypeError("timeSection args type mismatch.")
         timesection = { "start": start, 

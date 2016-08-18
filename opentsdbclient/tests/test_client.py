@@ -330,7 +330,6 @@ class TestClientServer(TestCase):
         except OpenTSDBError: # this may happen if the TS meta already exists from a previous aborted test.
             tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
         meas = [OpenTSDBMeasurement(ts,int(time.time())-200+i,random.random()) for i in range(0,100)]
-        #response = self.client.put_measurements(meas) #TODO this will fail with chunked request, but the response decoder fails -> fix this
         response = self.client.put_measurements(meas, compress=True) 
         time.sleep(5)
 

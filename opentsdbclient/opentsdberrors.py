@@ -69,7 +69,7 @@ def checkErrors(response, throw=False, allow=[200, 204, 301]):
                 return {
                             "code": response.status_code, 
                             "message": otsdbErrors[response.status_code],
-                            "details": "Error message not received."
+                            "details": response.text
                        }
             else:
                 return error

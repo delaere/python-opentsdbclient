@@ -21,17 +21,25 @@ import requests
 import inspect
 import cStringIO
 import gzip
+import re
 
 import opentsdbquery
 import templates
 from opentsdberrors import checkErrors, OpenTSDBError
 from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTSMeta, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
 
-# TODO: introduce a Response class
-# it should give access to the (error) code, the response content and the error content.
-# right now, we have the supposedly interesting part but much is hidden.
+relativeTime = re.compile("^(\d+)(ms|s|m|h|d|w|n|y)-ago\Z")
+absoluteTime = re.compile("^(\d{4})/(\d{2})/(\d{2})(( |- )(\d{2}):(\d{2})(:(\d{2}))?)?\Z")
 
-# TODO: implement /api/annotation/bulk
+def checkTime(time):
+    """checks that the arg can be the representation of time"""
+    if isinstance(time,int):
+        # UNIX timestamp
+        return time>0
+    elif isinstance(time,basestring):
+        return relativeTime.match(time) is not None or absoluteTime.match(time) is not None
+    else:
+        return False
 
 def checkArg(value, thetype, NoneAllowed=False, typeErrorMessage="Type mismatch", valueCheck=None, valueErrorMessage="Value error"):
     """check a single argument."""
@@ -87,7 +95,10 @@ def process_response(response, allow=[200,204,301]):
         trace = err.get("trace","")
         raise OpenTSDBError(code, message, details, trace)
     if response.status_code != 204:
-        return response.json()
+        try:
+            return response.json()
+        except:
+            return process_response(response,allow=[])
     else:
         return None
 
@@ -151,8 +162,8 @@ class RESTOpenTSDBClient:
            meaning it's associated with a specific tsuid. 
            If the tsuid is not supplied or has an empty value, the annotation is considered to be a global note."""
 
-        checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring}, 
-                                               {'startTime':lambda t:t>0, 'endTime':lambda t:t>0,'tsuid':lambda x: int(x,16)})
+        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':basestring}, 
+                                               {'startTime':checkTime, 'endTime':checkTime,'tsuid':lambda x: int(x,16)})
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid}
         params = { k:v for k,v in params.iteritems() if v is not None  }
         req = requests.get(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
@@ -166,9 +177,9 @@ class RESTOpenTSDBClient:
            Annotations are not meant to be used as a tracking or event based system, 
            rather they are useful for providing links to such systems by displaying a notice on graphs or via API query calls."""
 
-        checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring, 
+        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':basestring, 
                                                 'description': basestring, 'notes':basestring, 'custom':dict}, 
-                                               {'startTime':lambda t:t>0, 'endTime':lambda t:t>0, 'tsuid':lambda x: int(x,16)} )
+                                               {'startTime':checkTime, 'endTime':checkTime, 'tsuid':lambda x: int(x,16)} )
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid, "description":description, "notes":notes, "custom":custom}
         params = { k:v for k,v in params.iteritems() if v is not None  }
         req = requests.post(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
@@ -178,12 +189,24 @@ class RESTOpenTSDBClient:
     def delete_annotation(self, startTime, endTime=None, tsuid=None):
         """Used to delete an annotation."""
 
-        checkArguments(inspect.currentframe(), {'startTime':int, 'endTime':int, 'tsuid':basestring}, 
-                                               {'startTime':lambda t:t>0, 'endTime':lambda t:t>0,'tsuid':lambda x: int(x,16)})
+        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':basestring}, 
+                                               {'startTime':checkTime, 'endTime':checkTime,'tsuid':lambda x: int(x,16)})
 
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid }
         params = { k:v for k,v in params.iteritems() if v is not None }
         req = requests.delete(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
+                              data = json.dumps(params))
+        return process_response(req)
+
+    def delete_annotations(self, startTime, endTime=None, tsuid=[], considerGlobal=False):
+        """Used to delete all annotations in a time range for given tsuids and/or globally."""
+
+        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':list}, 
+                                               {'startTime':checkTime, 'endTime':checkTime,'tsuid':lambda x: sum([ int(tsuid,16) for tsuid in x ]) } )
+
+        params = { "startTime":startTime, "endTime":endTime, "tsuids":tsuids, "global":considerGlobal  }
+        params = { k:v for k,v in params.iteritems() if v is not None }
+        req = requests.delete(templates.ANNOTBULK_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(params))
         return process_response(req)
 

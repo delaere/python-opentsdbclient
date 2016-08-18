@@ -520,7 +520,7 @@ class OpenTSDBTreeBranch:
 
         if client is not None:
             # in that case, load from the client. If recursive is set, this will recursively load all the tree.
-            # TODO: check if this is needed. I think so reading the doc: leaves and branches are null for sub-branches.
+            # NOTE: check if this is needed. I think so reading the doc: leaves and branches are null for sub-branches.
             if branchId is not None:
                 data = client.get_tree_branch(branch=self.branchId)
             elif treeId is not None:

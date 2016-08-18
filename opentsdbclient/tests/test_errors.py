@@ -26,6 +26,7 @@ class FakeResponse:
     def __init__(self,status_code,content):
         self.status_code = status_code
         self.content = content
+        self.text = content
 
     def json(self):
         return json.loads(self.content)
@@ -72,13 +73,13 @@ class TestOpenTSDBError(TestCase):
         self.assertRaises(HTTPError,checkErrors,response, True)
 
         response.content = ""
-        expectedResult = { "code":400, "message":otsdbErrors[400], "details": "Error message not received." }
+        expectedResult = { "code":400, "message":otsdbErrors[400], "details": respContent }
 
         self.assertEqual(expectedResult,checkErrors(response, False))
         self.assertRaises(HTTPError,checkErrors,response, True)
 
         response.content = """{ "noerror":"happy" }"""
-        expectedResult = { "code":400, "message":otsdbErrors[400], "details": "Error message not received." }
+        expectedResult = { "code":400, "message":otsdbErrors[400], "details": respContent }
         
         self.assertEqual(expectedResult,checkErrors(response, False))
         self.assertRaises(HTTPError,checkErrors,response, True)
@@ -180,6 +181,8 @@ class TestOpenTSDBError(TestCase):
         # this should fail. We check the error template.
         e = self.assertRaises(ValueError,client.delete_annotation,-1)
         self.assertEqual("delete_annotation::startTime: got -1",e.message)
-        e = self.assertRaises(TypeError,client.delete_annotation,"")
+        e = self.assertRaises(ValueError,client.delete_annotation,"2016-01-01")
+        self.assertEqual("delete_annotation::startTime: got 2016-01-01",e.message)
+        e = self.assertRaises(TypeError,client.delete_annotation,3.4)
         self.assertEqual("delete_annotation::startTime: Type mismatch", e.message)
 

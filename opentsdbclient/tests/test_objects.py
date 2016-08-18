@@ -27,6 +27,7 @@ class FakeResponse:
     def __init__(self,status_code,content):
         self.status_code = status_code
         self.content = content
+        self.text = content
 
     def json(self):
         return json.loads(self.content)
