@@ -20,7 +20,7 @@ Supported API Endpoints:
 /api/serializers
 /api/stats
 /api/suggest
-/api/tree
+/api/tree (in development)
 /api/uid
 /api/version
 
