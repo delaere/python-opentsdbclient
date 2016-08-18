@@ -98,7 +98,7 @@ class OpenTSDBMetricSubQuery:
     def getMap(self):
         myself = { "aggregator": self.aggregator,
                    "metric": self.metric,
-#                   "explicitTags": self.explicitTags # TODO: fix: This is only in opentsdb 2.3 
+                   #"explicitTags": self.explicitTags # NOTE: requires v 2.3 or higher
                  }
         if self.rate:
             myself["rate"] = self.rate

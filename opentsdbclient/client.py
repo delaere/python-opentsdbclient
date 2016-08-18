@@ -22,6 +22,7 @@ import inspect
 import cStringIO
 import gzip
 import re
+import warnings
 
 import opentsdbquery
 import templates
@@ -104,9 +105,16 @@ def process_response(response, allow=[200,204,301]):
 
 class RESTOpenTSDBClient:
 
-    def __init__(self,host,port):
+    def __init__(self,host,port,check=False):
         self.host = host
         self.port = port
+        if check:
+            version = re.match("(\d)\.(\d)\.(\d)(-(.*))?",self.get_version()["version"])
+            if version is not None:
+                if int(version.group(1))==2 and int(version.group(2))>=2: return
+                warnings.warn("""This client is designed for openTSDB version 2.3 or higher. It will mostly work with version 2.0 and higer, with some limitations.""", RuntimeWarning)
+            else:
+                warnings.warn("Could not get the server version.", RuntimeWarning)
 
     def get_statistics(self):
         """Get info about what metrics are registered and with what stats."""

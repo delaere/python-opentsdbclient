@@ -353,6 +353,7 @@ class TestClientServer(TestCase):
         self.assertEqual(results,results2)
 
         ## TODO repeat with an exp query - 2.3 only...
+        ## NOTE I am experiencing problems with 2.3-RC1... server crash with some basic query. Too early?
         #timeSection = OpenTSDBExpQuery.timeSection("sum", "1h-ago")
         #filters = [OpenTSDBExpQuery.filters("id0",[OpenTSDBFilter("literal_or","host",host),OpenTSDBFilter("literal_or","dc","lga")])]
         #metrics = [OpenTSDBExpQuery.metric("cpunice","id0","sys.cpu.nice")]
