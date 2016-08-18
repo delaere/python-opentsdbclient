@@ -17,7 +17,7 @@
 from testtools import TestCase
 from client import RESTOpenTSDBClient
 from opentsdbobjects import OpenTSDBMeasurement, OpenTSDBTimeSeries, OpenTSDBAnnotation
-from opentsdbquery import OpenTSDBtsuidSubQuery, OpenTSDBMetricSubQuery, OpenTSDBQueryLast, OpenTSDBQuery, OpenTSDBFilter
+from opentsdbquery import OpenTSDBtsuidSubQuery, OpenTSDBMetricSubQuery, OpenTSDBQueryLast, OpenTSDBQuery, OpenTSDBFilter, OpenTSDBExpQuery
 from opentsdberrors import OpenTSDBError
 import uuid
 import time
@@ -352,16 +352,16 @@ class TestClientServer(TestCase):
         results2 = r[0]["dps"]
         self.assertEqual(results,results2)
 
-        ## TODO repeat with an exp query - 2.3 only...
-        ## NOTE I am experiencing problems with 2.3-RC1... server crash with some basic query. Too early?
-        #timeSection = OpenTSDBExpQuery.timeSection("sum", "1h-ago")
-        #filters = [OpenTSDBExpQuery.filters("id0",[OpenTSDBFilter("literal_or","host",host),OpenTSDBFilter("literal_or","dc","lga")])]
-        #metrics = [OpenTSDBExpQuery.metric("cpunice","id0","sys.cpu.nice")]
-        #expressions = [OpenTSDBExpQuery.expression("e1","cpunice*2")]
-        #outputs = [OpenTSDBExpQuery.output("cpunice","CPU nice"),OpenTSDBExpQuery.output("e1","CPU nice twice")]
-        #theQuery = OpenTSDBExpQuery(timeSection, filters, metrics, expressions, outputs)
-        #r3 = elf.client.query(theQuery)
+        ## repeat with an exp query 
+        timeSection = OpenTSDBExpQuery.timeSection("sum", "1h-ago")
+        filters = [OpenTSDBExpQuery.filters("id0",[OpenTSDBFilter("literal_or","host",host),OpenTSDBFilter("literal_or","dc","lga")])]
+        metrics = [OpenTSDBExpQuery.metric("cpunice","id0","sys.cpu.nice")]
+        expressions = [OpenTSDBExpQuery.expression("e1","cpunice*2")]
+        outputs = [OpenTSDBExpQuery.output("cpunice","CPU nice"),OpenTSDBExpQuery.output("e1","CPU nice twice")]
+        theQuery = OpenTSDBExpQuery(timeSection, filters, metrics, expressions, outputs)
+        self.assertRaises(RuntimeError,self.client.query,theQuery) # 2.3 only...
         ## decode and test
+        ## NOTE I am experiencing problems with 2.3-RC1... server crash with some basic query. Too early?
 
         # last query
         querylast = OpenTSDBQueryLast(metrics=[],tsuids=[tsuid],backScan=1,resolveNames=True)
@@ -370,7 +370,7 @@ class TestClientServer(TestCase):
         self.assertTrue(float(r[0]["value"])-meas[-1].value<1e-6)
 
 
-#TODO implement this later
+#NOTE implement this later
 class TestTreeManipulation(TestCase):
     """Tests implying a running test server on localhost
        tree manipulation

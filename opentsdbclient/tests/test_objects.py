@@ -85,7 +85,7 @@ class TestOpenTSDBAnnotation(TestCase):
         b = OpenTSDBAnnotation(1369141261,1369141262,"000001000001000001")
         def my_get(url,data): return FakeResponse(200,json.dumps(a.getMap()))
         self.patch(requests, 'get', my_get)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         b.loadFrom(client)
         self.assertEqual(a.getMap(),b.getMap())
 
@@ -98,7 +98,7 @@ class TestOpenTSDBAnnotation(TestCase):
         # delete
 	def my_delete(url,data): return FakeResponse(200,data)
 	self.patch(requests, 'delete', my_delete)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         a = OpenTSDBAnnotation(1369141261,1369141262,"000001000001000001","Network Outage","Switch #5 died and was replaced",{"owner": "jdoe","dept": "ops"})
         a.delete(client)
 
@@ -161,7 +161,7 @@ class TestOpenTSDBTimeSeries(TestCase):
                  }
         def my_post(url,data): return FakeResponse(200,json.dumps(response))
 	self.patch(requests, 'post', my_post)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         ts.assign_uid(client)
         self.assertEqual("000042",ts.metric_meta.uid)
         self.assertEqual("00001A",ts.tagv_meta["web01"].uid)
@@ -185,7 +185,7 @@ class TestOpenTSDBTimeSeries(TestCase):
                  }
         def my_post(url,data): return FakeResponse(400,json.dumps(response))
 	self.patch(requests, 'post', my_post)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         ts.assign_uid(client)
         self.assertEqual("000042",ts.metric_meta.uid)
         self.assertEqual("00001A",ts.tagv_meta["web01"].uid)
@@ -211,7 +211,7 @@ class TestOpenTSDBTimeSeries(TestCase):
                  }
         def my_post(url,data): return FakeResponse(400,json.dumps(response))
 	self.patch(requests, 'post', my_post)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         ts.assign_uid(client)
         self.assertEqual("000042",ts.metric_meta.uid)
         self.assertEqual("00001A",ts.tagv_meta["web01"].uid)
@@ -323,7 +323,7 @@ class TestOpenTSDBTimeSeries(TestCase):
             if "use_meta" in params: return FakeResponse(200,json.dumps(search_response))  
             else: return FakeResponse(200,json.dumps(response))
 	self.patch(requests, 'get', my_get)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
 	ts.loadFrom(client)
         self.assertEqual(ts.metadata.created,1350425579)
         self.assertEqual(reference,ts.getMap(full=True))
@@ -332,7 +332,7 @@ class TestOpenTSDBTimeSeries(TestCase):
         def my_post(url,data,params): return FakeResponse(200,json.dumps(response))
 	self.patch(requests, 'get', my_get)
 	self.patch(requests, 'post', my_post)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"},'0000150000070010D0')
 	ts.loadFrom(client)
         self.assertEqual(reference,ts.getMap(full=True))
@@ -342,7 +342,7 @@ class TestOpenTSDBTimeSeries(TestCase):
         response = [ response ]
         def my_get(url,params): return FakeResponse(200,json.dumps(response))
 	self.patch(requests, 'get', my_get)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
 	ts.loadFrom(client)
         self.assertEqual(ts.metadata.created,1350425579)
         self.assertEqual(reference,ts.getMap(full=True))
@@ -354,7 +354,7 @@ class TestOpenTSDBTimeSeries(TestCase):
         def my_post(url,data,params): return FakeResponse(200,json.dumps(post_response))
 	self.patch(requests, 'get', my_get)
 	self.patch(requests, 'post', my_post)
-	client = RESTOpenTSDBClient("localhost",4242)
+	client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
 	ts.loadFrom(client)
         self.assertEqual(ts.metadata.created,1350425579)
         self.assertEqual(reference,ts.getMap(full=True))
@@ -363,7 +363,7 @@ class TestOpenTSDBTimeSeries(TestCase):
         get_response = [post_response, post_response]
         def my_get(url,params): return FakeResponse(200,json.dumps(get_response))
         self.patch(requests, 'get', my_get)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         self.assertRaises(ValueError,ts.loadFrom,client)
         # saveTo - just check that it runs.
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01"},'000005000001000002000002000006')
@@ -375,12 +375,12 @@ class TestOpenTSDBTimeSeries(TestCase):
         ts.tagv_meta["web01"].type = "tagv"
         def my_post(url,data,params=None): return FakeResponse(200,json.dumps({"tsuid":'000005000001000002000002000006', "uid":"00002A", "type":"METRIC"}))
 	self.patch(requests, 'post', my_post) # just enough to make it run, but meaningless
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         ts.saveTo(client)
         # deleteMeta - just check that it runs.
         def my_delete(url,data): return FakeResponse(204,"")
         self.patch(requests, 'delete', my_delete)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         ts.deleteMeta(client,True)
 
 
@@ -410,7 +410,7 @@ class TestOpenTSDBMeasurement(TestCase):
         m = OpenTSDBMeasurement(OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"},'0000150000070010D0'),int(time.time()),self.getUniqueInteger())
         def my_post(url,data): return FakeResponse(204,"")
         self.patch(requests, 'post', my_post)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         m.saveTo(client)
 
 
@@ -453,12 +453,12 @@ class TestOpenTSDBRule(TestCase):
         # saveTo
         def my_post(url,data): return FakeResponse(200,json.dumps(r.getMap()))
         self.patch(requests, 'post', my_post)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         r.saveTo(client)
         # delete
         def my_delete(url,data): return FakeResponse(204,"")
         self.patch(requests, 'delete', my_delete)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         r.delete(client)
 
 class TestOpenTSDBTreeDefinition(TestCase):
@@ -553,10 +553,10 @@ class TestOpenTSDBTreeDefinition(TestCase):
     def test_client(self):
         # create
         td = OpenTSDBTreeDefinition("")
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         self.assertRaises(ValueError,td.create,client)
         td = OpenTSDBTreeDefinition(self.getUniqueString(), self.getUniqueString(), self.getUniqueString())
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         tdmap_before = td.getMap()
         response = td.getMap()
         response["created"]=int(time.time())
@@ -580,7 +580,7 @@ class TestOpenTSDBTreeDefinition(TestCase):
         # delete
         def my_delete(url,data): return FakeResponse(204,"")
         self.patch(requests, 'delete', my_delete)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
         td.delete(client)
         self.assertEqual(None,td.treeId)
         self.assertEqual(None,td.created)

@@ -105,16 +105,18 @@ def process_response(response, allow=[200,204,301]):
 
 class RESTOpenTSDBClient:
 
-    def __init__(self,host,port,check=False):
+    def __init__(self,host,port,ver=None):
         self.host = host
         self.port = port
-        if check:
-            version = re.match("(\d)\.(\d)\.(\d)(-(.*))?",self.get_version()["version"])
-            if version is not None:
-                if int(version.group(1))==2 and int(version.group(2))>=2: return
+        if ver is None: ver = self.get_version()["version"]
+        version = re.match("(\d)\.(\d)\.(\d)(-(.*))?",ver)
+        if version is not None:
+            self.version = (int(version.group(1)),int(version.group(2)),int(version.group(3)), version.group(5))
+            if not (self.version[0]==2 and self.version[1]>=2):
                 warnings.warn("""This client is designed for openTSDB version 2.3 or higher. It will mostly work with version 2.0 and higer, with some limitations.""", RuntimeWarning)
-            else:
-                warnings.warn("Could not get the server version.", RuntimeWarning)
+        else:
+            self.version = (0,0,0,None)
+            warnings.warn("Could not get the server version: %s"%ver, RuntimeWarning)
 
     def get_statistics(self):
         """Get info about what metrics are registered and with what stats."""
@@ -271,6 +273,7 @@ class RESTOpenTSDBClient:
         if isinstance(openTSDBQuery,opentsdbquery.OpenTSDBQuery):
             endpoint = templates.QUERY_TEMPL
         elif isinstance(openTSDBQuery,opentsdbquery.OpenTSDBExpQuery):
+            if self.version[1]<3: raise RuntimeError("expressions are only available from openTSDB v2.3.")
             endpoint = templates.EXPQUERY_TEMPL
         elif isinstance(openTSDBQuery,opentsdbquery.OpenTSDBQueryLast):
             endpoint = templates.QUERYLST_TEMPL

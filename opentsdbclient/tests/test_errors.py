@@ -172,7 +172,7 @@ class TestOpenTSDBError(TestCase):
 
         def my_delete(url,data): return FakeResponse(200,data)
         self.patch(requests, 'delete', my_delete)
-        client = RESTOpenTSDBClient("localhost",4242)
+        client = RESTOpenTSDBClient("localhost",4242,"2.2.0")
 
         # this should pass
         client.delete_annotation(abs(self.getUniqueInteger()),abs(self.getUniqueInteger()),"000001000001000001")
