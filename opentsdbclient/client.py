@@ -36,7 +36,7 @@ def checkTime(time):
     """checks that the arg can be the representation of time"""
     if isinstance(time,int):
         # UNIX timestamp
-        return time>0
+        return time>=0
     elif isinstance(time,basestring):
         return relativeTime.match(time) is not None or absoluteTime.match(time) is not None
     else:
