@@ -358,8 +358,8 @@ class OpenTSDBMeasurement:
     def check(self):
         # timeseries must be valid
         if not self.ts.check(): return False
-        #  Timestamps must be integers and be no longer than 13 digits
-        if not (isinstance(self.timestamp,int) and self.timestamp>=0 and len(str(self.timestamp))<13) : return False
+        #  Timestamps must be integers and be no longer than 13 digits, + 3 digits for ms precision
+        if not (isinstance(self.timestamp,int) and self.timestamp>=0 and len(str(self.timestamp))<16) : return False
         # Data point can have a minimum value of -9,223,372,036,854,775,808 and a maximum value of 9,223,372,036,854,775,807 (inclusive)
         # Floats are also valid and stored on 32 bits (IEEE 754 floating-point "single format" with positive and negative value support)
         # on most platforms, this means int or float, excluding long. But this would not be portable.

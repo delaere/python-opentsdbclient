@@ -393,7 +393,7 @@ class TestOpenTSDBMeasurement(TestCase):
         # Timestamps must be integers and be no longer than 13 digits
         self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),12.5,self.getUniqueInteger())
         self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),"",self.getUniqueInteger())
-        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),12345678901234,self.getUniqueInteger())
+        self.assertRaises(ValueError,OpenTSDBMeasurement,OpenTSDBTimeSeries("sys.cpu.nice",{"host":"web01", "dc": "lga"}),12345678901234567,self.getUniqueInteger())
 
         # Data point can have a minimum value of -9,223,372,036,854,775,808 and a maximum value of 9,223,372,036,854,775,807 (inclusive)
         # Floats are also valid and stored on 32 bits (IEEE 754 floating-point "single format" with positive and negative value support)
