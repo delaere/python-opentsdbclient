@@ -365,7 +365,7 @@ class OpenTSDBMeasurement:
         # on most platforms, this means int or float, excluding long. But this would not be portable.
         if isinstance(self.value,int):
             if self.value < -9223372036854775808 or self.value > 9223372036854775807: return False
-        elif not isinstance(self.value,(float,basestring)) : return False
+        elif not isinstance(self.value,(float,basestring)) and not self.value is None: return False
 
         return True
 
