@@ -13,7 +13,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from opentsdbobjects import OpenTSDBTimeSeries
+from .opentsdbobjects import OpenTSDBTimeSeries
 import string
 
 class OpenTSDBQuery:
@@ -48,7 +48,7 @@ class OpenTSDBQuery:
 
     def getMap(self):
         myself = { "start": self.start,
-                   "queries": map(lambda q:q.getMap(),self.subqueries),
+                   "queries": [q.getMap() for q in self.subqueries],
                    "noAnnotations": self.noAnnotations,
                    "globalAnnotations": self.globalAnnotations,
                    "msResolution": self.msResolution,
@@ -63,8 +63,8 @@ class OpenTSDBQuery:
 
     def check(self):
         if (not isinstance(self.subqueries,list) or
-            (not isinstance(self.start,int) and not isinstance(self.start,basestring)) or
-            (self.end is not None and not isinstance(self.start,int) and not isinstance(self.start,basestring)) or
+            (not isinstance(self.start,int) and not isinstance(self.start,str)) or
+            (self.end is not None and not isinstance(self.start,int) and not isinstance(self.start,str)) or
             not isinstance(self.noAnnotations,bool) or
             not isinstance(self.globalAnnotations,bool) or
             not isinstance(self.msResolution,bool) or
@@ -107,15 +107,15 @@ class OpenTSDBMetricSubQuery:
             if self.resetValue is not None: rateOptions["resetValue"] = self.resetValue
             myself["rateOptions"] = rateOptions
         if self.filters is not None:
-            myself["filters"] = map(lambda f:f.getMap(),self.filters)
+            myself["filters"] = [f.getMap() for f in self.filters]
         return myself
     
     def check(self):
-        if (not isinstance(self.aggregator,basestring) or 
+        if (not isinstance(self.aggregator,str) or 
             not isinstance(self.rate, bool) or 
             (self.counterMax is not None and not isinstance(self.counterMax,int)) or
             (self.resetValue is not None and not isinstance(self.resetValue,int)) or
-            (self.downsample is not None and not isinstance(self.downsample,basestring)) or
+            (self.downsample is not None and not isinstance(self.downsample,str)) or
             not isinstance(self.explicitTags,bool)):
                raise TypeError("OpenTSDBMetricSubQuery type mismatch")
         if self.filters is not None:
@@ -140,13 +140,13 @@ class OpenTSDBtsuidSubQuery:
         return { "aggregator": self.aggregator, "tsuids": self.tsuids }
 
     def check(self):
-        if (not isinstance(self.aggregator,basestring) or
-            not (isinstance(self.tsuids, list) and not isinstance(self.tsuids, basestring))):
+        if (not isinstance(self.aggregator,str) or
+            not (isinstance(self.tsuids, list) and not isinstance(self.tsuids, str))):
                 raise TypeError("OpenTSDBtsuidSubQuery type mismatch")
         if len(self.tsuids)<1:
             raise ValueError("OpenTSDBtsuidSubQuery tsuid list cannot be empty")
         for i in self.tsuids:
-            if not isinstance(i,basestring):
+            if not isinstance(i,str):
                raise TypeError("OpenTSDBtsuidSubQuery type mismatch")
             int(i,16)
 
@@ -171,9 +171,9 @@ class OpenTSDBFilter:
                 "groupBy": self.groupBy}
 
     def check(self):
-        if (not isinstance(self.filterType,basestring) or
-            not isinstance(self.tagKey,basestring) or
-            not isinstance(self.filterExpression,basestring) or
+        if (not isinstance(self.filterType,str) or
+            not isinstance(self.tagKey,str) or
+            not isinstance(self.filterExpression,str) or
             not isinstance(self.groupBy,bool)):
                raise TypeError("OpenTSDBFilter type mismatch")
 
@@ -245,13 +245,13 @@ class OpenTSDBExpQuery:
     @staticmethod
     def timeSection(aggregator, start, end=None, downsampler=None, rate=False):
         """The time section is required. It affects the time range and optional reductions for all metrics requested."""
-        if not isinstance(start,(int,basestring)) or not isinstance(aggregator, basestring) or not isinstance(rate, bool):
+        if not isinstance(start,(int,str)) or not isinstance(aggregator, str) or not isinstance(rate, bool):
             raise TypeError("timeSection args type mismatch.")
         timesection = { "start": start, 
                         "aggregator": aggregator,
                         "rate": rate}
         if end is not None: 
-            if not isinstance(end,(int,basestring)):
+            if not isinstance(end,(int,str)):
                 raise TypeError("end must be integer or string")
             timesection["end"]=end
         if downsampler is not None: 
@@ -264,7 +264,7 @@ class OpenTSDBExpQuery:
     @staticmethod
     def filters(theId, filters):
         """A set of filters with an id"""
-        if (not isinstance(theId,basestring)):
+        if (not isinstance(theId,str)):
             raise TypeError("filter id must be a string")
         if len(filters)<1:
             raise ValueError("There must be at least one filter")
@@ -273,14 +273,14 @@ class OpenTSDBExpQuery:
                 raise TypeError("expect a OpenTSDBFilter instance")
             f.check()
         return {"id": theId,
-                "tags": map(lambda f: f.getMap(), filters)}
+                "tags": [f.getMap() for f in filters]}
 
     @staticmethod
     def downsampler(interval, aggregator, fillPolicy=None):
         """Reduces the number of data points returned. Part of the time section."""
         downSampler = { "interval": interval,
                         "aggregator": aggregator}
-        if not isinstance(interval,basestring) or not isinstance(aggregator,basestring):
+        if not isinstance(interval,str) or not isinstance(aggregator,str):
             raise TypeError("downsampler args type mismatch.")
         if fillPolicy is not None:
             if not isinstance(fillPolicy, dict):
@@ -305,13 +305,13 @@ class OpenTSDBExpQuery:
     def metric(metricId, filterId, metricName, aggregator=None, fillPolicy=None):
         """The metrics list determines which metrics are included in the expression. 
            There must be at least one metric."""
-        if not isinstance(metricId,basestring) or not isinstance(filterId,basestring) or not isinstance(metricName,basestring):
+        if not isinstance(metricId,str) or not isinstance(filterId,str) or not isinstance(metricName,str):
             raise TypeError("metric args type mismatch.")
         if any(char not in string.ascii_letters+string.digits for char in metricId):
             raise ValueError("unique ID for the metric MUST be a simple string, no punctuation or spaces")
         theMetric = {"id": metricId, "filter": filterId, "metric": metricName}
         if aggregator is not None:
-            if not isinstance(aggregator,basestring):
+            if not isinstance(aggregator,str):
                 raise TypeError("metric args type mismatch.")
             theMetric["aggregator"] = aggregator
         if fillPolicy is not None:
@@ -328,7 +328,7 @@ class OpenTSDBExpQuery:
            So far only basic operations are supported such as addition, subtraction, multiplication, division, modulo"""
 
         theExpr = { "id": exprId, "expr": expr }
-        if not isinstance(exprId,basestring) or not isinstance(expr,basestring):
+        if not isinstance(exprId,str) or not isinstance(expr,str):
             raise TypeError("expression args type mismatch.")
         if join is not None:
             if not isinstance(join, dict):
@@ -345,7 +345,7 @@ class OpenTSDBExpQuery:
         """The join object controls how the various time series for a given metric are merged within an expression. 
            The two basic operations supported at this time are the union and intersection operators. 
            Additional flags control join behavior."""
-        if not isinstance(operator,basestring) or not isinstance(useQueryTags,bool) or not isinstance(includeAggTags,bool):
+        if not isinstance(operator,str) or not isinstance(useQueryTags,bool) or not isinstance(includeAggTags,bool):
             raise TypeError("join args type mismatch.")
         return {"operator": operator, 
                 "useQueryTags": useQueryTags,
@@ -358,7 +358,7 @@ class OpenTSDBExpQuery:
            By default, if this section is missing, all expressions and only the expressions will be serialized. 
            The field is a list of one or more output objects. 
            More fields will be added later with flags to affect the output."""
-        if not isinstance(outputId,basestring) or (alias is not None and not isinstance(alias,basestring)):
+        if not isinstance(outputId,str) or (alias is not None and not isinstance(alias,str)):
             raise TypeError("output args type mismatch.")
         if alias is None:
             return {"id": outputId }
@@ -403,7 +403,7 @@ class OpenTSDBQueryLast:
 
     @staticmethod
     def metric(metric, tags):
-        if not isinstance(metric,basestring) or not isinstance(tags,dict):
+        if not isinstance(metric,str) or not isinstance(tags,dict):
             raise TypeError("metric args type mismatch.")
         return { "metric":metric, "tags":tags }
 

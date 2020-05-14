@@ -19,15 +19,15 @@
 import json
 import requests
 import inspect
-import cStringIO
+import io
 import gzip
 import re
 import warnings
 
-import opentsdbquery
-import templates
-from opentsdberrors import checkErrors, OpenTSDBError
-from opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTSMeta, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
+from . import opentsdbquery
+from . import templates
+from .opentsdberrors import checkErrors, OpenTSDBError
+from .opentsdbobjects import OpenTSDBAnnotation, OpenTSDBTSMeta, OpenTSDBTimeSeries, OpenTSDBMeasurement, OpenTSDBTreeDefinition, OpenTSDBRule
 
 relativeTime = re.compile("^(\d+)(ms|s|m|h|d|w|n|y)-ago\Z")
 absoluteTime = re.compile("^(\d{4})/(\d{2})/(\d{2})(( |- )(\d{2}):(\d{2})(:(\d{2}))?)?\Z")
@@ -37,7 +37,7 @@ def checkTime(time):
     if isinstance(time,int):
         # UNIX timestamp
         return time>=0
-    elif isinstance(time,basestring):
+    elif isinstance(time,str):
         return relativeTime.match(time) is not None or absoluteTime.match(time) is not None
     else:
         return False
@@ -73,7 +73,7 @@ def checkArguments(frame, argTypes, valueChecks = {},
     functionName = inspect.getframeinfo(frame)[2]
     _, _, _, defaults  = inspect.getargspec(getattr(values['self'],functionName))
     if defaults is not None:
-        defaults = dict(zip(args[::-1],defaults[::-1]))
+        defaults = dict(list(zip(args[::-1],defaults[::-1])))
     else: 
         defaults = {}
     for arg in args[1:]:
@@ -140,16 +140,16 @@ class RESTOpenTSDBClient:
         else: options = ""
         
         if sync:
-            if options is "":
+            if options == "":
                 options +="?"
             else:
                 options +="&"
             options +="sync&sync_timeout=%d"%sync_timeout
-        rawData = json.dumps(map(lambda x:x.getMap(),measurements))
+        rawData = json.dumps([x.getMap() for x in measurements])
         if compress:
-            fgz = cStringIO.StringIO()
+            fgz = io.BytesIO()
             with gzip.GzipFile(filename='myfile.json.gz', mode='wb', fileobj=fgz)  as gzip_obj:
-                gzip_obj.write(rawData)
+                gzip_obj.write(rawData.encode())
             compressedData = fgz.getvalue()
             req = requests.post(templates.PUT_TEMPL % {'host': self.host,'port': self.port,'options': options},
                                 data=compressedData,
@@ -172,10 +172,10 @@ class RESTOpenTSDBClient:
            meaning it's associated with a specific tsuid. 
            If the tsuid is not supplied or has an empty value, the annotation is considered to be a global note."""
 
-        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':basestring}, 
+        checkArguments(inspect.currentframe(), {'startTime':(int,str), 'endTime':(int,str), 'tsuid':str}, 
                                                {'startTime':checkTime, 'endTime':checkTime,'tsuid':lambda x: int(x,16)})
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid}
-        params = { k:v for k,v in params.iteritems() if v is not None  }
+        params = { k:v for k,v in list(params.items()) if v is not None  }
         req = requests.get(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                            data = json.dumps(params))
         return OpenTSDBAnnotation(**process_response(req))
@@ -187,11 +187,11 @@ class RESTOpenTSDBClient:
            Annotations are not meant to be used as a tracking or event based system, 
            rather they are useful for providing links to such systems by displaying a notice on graphs or via API query calls."""
 
-        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':basestring, 
-                                                'description': basestring, 'notes':basestring, 'custom':dict}, 
+        checkArguments(inspect.currentframe(), {'startTime':(int,str), 'endTime':(int,str), 'tsuid':str, 
+                                                'description': str, 'notes':str, 'custom':dict}, 
                                                {'startTime':checkTime, 'endTime':checkTime, 'tsuid':lambda x: int(x,16)} )
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid, "description":description, "notes":notes, "custom":custom}
-        params = { k:v for k,v in params.iteritems() if v is not None  }
+        params = { k:v for k,v in list(params.items()) if v is not None  }
         req = requests.post(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(params))
         return OpenTSDBAnnotation(**process_response(req))
@@ -199,11 +199,11 @@ class RESTOpenTSDBClient:
     def delete_annotation(self, startTime, endTime=None, tsuid=None):
         """Used to delete an annotation."""
 
-        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':basestring}, 
+        checkArguments(inspect.currentframe(), {'startTime':(int,str), 'endTime':(int,str), 'tsuid':str}, 
                                                {'startTime':checkTime, 'endTime':checkTime,'tsuid':lambda x: int(x,16)})
 
         params = { "startTime":startTime, "endTime":endTime, "tsuid":tsuid }
-        params = { k:v for k,v in params.iteritems() if v is not None }
+        params = { k:v for k,v in list(params.items()) if v is not None }
         req = requests.delete(templates.ANNOT_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(params))
         return process_response(req)
@@ -211,11 +211,11 @@ class RESTOpenTSDBClient:
     def delete_annotations(self, startTime, endTime=None, tsuid=[], considerGlobal=False):
         """Used to delete all annotations in a time range for given tsuids and/or globally."""
 
-        checkArguments(inspect.currentframe(), {'startTime':(int,basestring), 'endTime':(int,basestring), 'tsuid':list}, 
+        checkArguments(inspect.currentframe(), {'startTime':(int,str), 'endTime':(int,str), 'tsuid':list}, 
                                                {'startTime':checkTime, 'endTime':checkTime,'tsuid':lambda x: sum([ int(tsuid,16) for tsuid in x ]) } )
 
         params = { "startTime":startTime, "endTime":endTime, "tsuids":tsuids, "global":considerGlobal  }
-        params = { k:v for k,v in params.iteritems() if v is not None }
+        params = { k:v for k,v in list(params.items()) if v is not None }
         req = requests.delete(templates.ANNOTBULK_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps(params))
         return process_response(req)
@@ -255,7 +255,7 @@ class RESTOpenTSDBClient:
            It does not offer full text searching or wildcards, rather it simply matches 
            the entire string passed in the query on the first characters of the stored data. """
 
-        checkArguments(inspect.currentframe(), {'datatype':basestring, 'query':basestring, 'maxResults':int}, 
+        checkArguments(inspect.currentframe(), {'datatype':str, 'query':str, 'maxResults':int}, 
                                                {'maxResults':lambda m:m>0, 'datatype':lambda d: d in ['metrics', 'tagk' , 'tagv']} )
 
         params = { "type":datatype }
@@ -298,21 +298,21 @@ class RESTOpenTSDBClient:
                      "ANNOTATION":"/api/search/annotation",
                      "LOOKUP":"/api/search/lookup" }
 
-        checkArguments(inspect.currentframe(), {'mode':basestring, 'query':basestring, 'metric':basestring, 'tags':dict, 'limit':int, 'startindex':int, 'useMeta':bool}, 
+        checkArguments(inspect.currentframe(), {'mode':str, 'query':str, 'metric':str, 'tags':dict, 'limit':int, 'startindex':int, 'useMeta':bool}, 
                                                {'limit':lambda x:x>0, 'startindex':lambda x:x>=0, 'mode':lambda m:m.upper() in endpoint} )
 
         if mode.upper()=="LOOKUP":
             tagslist =[]
-            for k,v in tags.iteritems():
+            for k,v in list(tags.items()):
                 tagslist.append({ "key":k, "value":v })
             theData = { "metric":metric, "tags": tagslist,  "useMeta": useMeta }
-	    # BEGIN PATCH
+            # BEGIN PATCH
             # there seems to be a bug with OpenTSDB here... use the query instead.
             def tsString(metric, tags):
                 mystring = []
                 mystring.append(metric)
                 mystring.append("{")
-                for k,v in tags.iteritems():
+                for k,v in list(tags.items()):
                     mystring.append("%s=%s"%(k,v))
                     mystring.append(",")
                 mystring[-1] = "}"
@@ -320,7 +320,7 @@ class RESTOpenTSDBClient:
             params = { "m":tsString(metric,tags), "use_meta":useMeta }
             req = requests.get(templates.SEARCH_TEMPL % { 'endpoint': endpoint[mode.upper()], 'host': self.host,'port': self.port }, params = params)
             return process_response(req)
-	    # END PATCH
+            # END PATCH
         else:
             theData = { "query":query, "limit":limit, "startindex":startindex }
         req = requests.post(templates.SEARCH_TEMPL % { 'endpoint': endpoint[mode.upper()], 'host': self.host,'port': self.port},
@@ -342,9 +342,9 @@ class RESTOpenTSDBClient:
            reporting which names were assigned UIDs successfully, along with the UID assigned, and which failed due to invalid characters or had already been assigned."""
 
         checkArguments(inspect.currentframe(), {'metric_list':list, 'tagk_list':list, 'tagv_list':list},
-                                               {'metric_list':lambda l: all(map(lambda x:isinstance(x,basestring),l)),
-                                                'tagk_list':lambda l: all(map(lambda x:isinstance(x,basestring),l)),
-                                                'tagv_list':lambda l: all(map(lambda x:isinstance(x,basestring),l))})
+                                               {'metric_list':lambda l: all([isinstance(x,str) for x in l]),
+                                                'tagk_list':lambda l: all([isinstance(x,str) for x in l]),
+                                                'tagv_list':lambda l: all([isinstance(x,str) for x in l])})
 
         if metric_list is None and tagk_list is None and tagv_list is None: 
             return None
@@ -362,7 +362,7 @@ class RESTOpenTSDBClient:
             raise ValueError("Either metric or tsuid must be set.")
         if metric is not None and tsuid is not None:
             raise ValueError("Only one of metric or tsuid must be set.")
-        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring}, {'metric': lambda x: OpenTSDBTimeSeries.checkString, 'tsuid':lambda x: int(x,16)})
+        checkArguments(inspect.currentframe(), {'tsuid':str, 'metric':str}, {'metric': lambda x: OpenTSDBTimeSeries.checkString, 'tsuid':lambda x: int(x,16)})
         if tsuid is None:
             params = { 'm':metric }
         else:
@@ -377,16 +377,16 @@ class RESTOpenTSDBClient:
            Some fields are set by the TSD but others can be set by the user. 
            Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
 
-        checkArguments(inspect.currentframe(), {'tsuid':basestring, 'metric':basestring, 'description':basestring, 'displayName':basestring, 
-                                                'notes':basestring, 'custom':dict, 'units':basestring, 'dataType':basestring, 
-                                                'retention':int, 'maximum':(float,basestring), 'minimum':(float,basestring)}, 
+        checkArguments(inspect.currentframe(), {'tsuid':str, 'metric':str, 'description':str, 'displayName':str, 
+                                                'notes':str, 'custom':dict, 'units':str, 'dataType':str, 
+                                                'retention':int, 'maximum':(float,str), 'minimum':(float,str)}, 
                                                {'tsuid':lambda x: int(x,16), 'retention': lambda x:x>=0} )
 
         if tsuid is not None:
             # in that case perform a standard query
             theData = { "tsuid":tsuid, "description":description, "displayName":displayName, "notes":notes, 
                         "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
-            theData = { k:v for k,v in theData.iteritems() if v is not None }
+            theData = { k:v for k,v in list(theData.items()) if v is not None }
             req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                                 data = json.dumps(theData))
             return process_response(req)
@@ -394,7 +394,7 @@ class RESTOpenTSDBClient:
             # perform a 2.1 metric style query
             theData = { "description":description, "displayName":displayName, "notes":notes, 
                         "custom":custom, "units":units, "dataType":dataType, "retention":retention, "max":maximum, "min":minimum}
-            theData = { k:v for k,v in theData.iteritems() if v is not None }
+            theData = { k:v for k,v in list(theData.items()) if v is not None }
             params = {'m':metric, 'create':'true'}
             req = requests.post(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                                 data = json.dumps(theData),
@@ -408,7 +408,7 @@ class RESTOpenTSDBClient:
            Please note that deleting a meta data entry will not delete the data points stored for the timeseries. 
            Neither will it remove the UID assignments or associated UID meta objects."""
 
-        checkArguments(inspect.currentframe(), {'tsuid':basestring}, {'tsuid':lambda x: int(x,16)})
+        checkArguments(inspect.currentframe(), {'tsuid':str}, {'tsuid':lambda x: int(x,16)})
 
         req = requests.delete(templates.TSMETA_TEMPL % {'host': self.host,'port': self.port},
                               data = json.dumps({ "tsuid": tsuid }))
@@ -433,7 +433,7 @@ class RESTOpenTSDBClient:
         """This endpoint enables getting UID meta data information, that is meta data associated with metrics, 
            tag names and tag values. Some fields are set by the TSD but others can be set by the user. """
 
-        checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring}, 
+        checkArguments(inspect.currentframe(), {'uid':str, 'uidtype':str}, 
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
         theData = {"uid":uid, "type":uidtype}
@@ -446,11 +446,11 @@ class RESTOpenTSDBClient:
            tag names and tag values. Some fields are set by the TSD but others can be set by the user.
            Only the fields supplied with the request will be stored. Existing fields that are not included will be left alone."""
 
-        checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring, 'description':basestring, 'displayName':basestring, 'notes':basestring, 'custom':dict}, 
+        checkArguments(inspect.currentframe(), {'uid':str, 'uidtype':str, 'description':str, 'displayName':str, 'notes':str, 'custom':dict}, 
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
         theData = { "uid":uid, "type":uidtype, "description":description, "displayName":displayName, "notes":notes, "custom":custom}
-        theData = { k:v for k,v in theData.iteritems() if v is not None }
+        theData = { k:v for k,v in list(theData.items()) if v is not None }
         req = requests.post(templates.UIDMETA_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
@@ -458,7 +458,7 @@ class RESTOpenTSDBClient:
     def delete_uidmeta(self, uid, uidtype):
         """This endpoint enables deleting UID meta data information, that is meta data associated with metrics, tag names and tag values."""
 
-        checkArguments(inspect.currentframe(), {'uid':basestring, 'uidtype':basestring}, 
+        checkArguments(inspect.currentframe(), {'uid':str, 'uidtype':str}, 
                                                {'uid':lambda x: int(x,16), 'uidtype':lambda x: x.upper() in ["METRIC", "TAGK", "TAGV"]})
 
         theData = {"uid":uid, "type":uidtype}
@@ -474,10 +474,10 @@ class RESTOpenTSDBClient:
            After creating a tree you should add rules then use the tree/test endpoint with a few TSUIDs to make sure the resulting tree will be what you expected. 
            After you have verified the results, you can set the enabled field to true and new TSMeta objects or a tree synchronization will start to populate branches."""
 
-        checkArguments(inspect.currentframe(), {'name':basestring, 'description':basestring, 'notes':basestring, 'strictMatch':bool, 'enabled':bool, 'storeFailures':bool})
+        checkArguments(inspect.currentframe(), {'name':str, 'description':str, 'notes':str, 'strictMatch':bool, 'enabled':bool, 'storeFailures':bool})
 
         theData = {"name":name, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
-        theData = { k:v for k,v in theData.iteritems() if v is not None }
+        theData = { k:v for k,v in list(theData.items()) if v is not None }
         req = requests.post(templates.TREE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
@@ -499,10 +499,10 @@ class RESTOpenTSDBClient:
     def edit_tree(self, treeId, description=None, notes=None, strictMatch=False, enabled=False, storeFailures=False):
         """Using this method, you can edit most of the fields for an existing tree. A successful request will return the modified tree object."""
 
-        checkArguments(inspect.currentframe(), {'treeId':int, 'description':basestring, 'notes':basestring, 'strictMatch':bool, 'enabled':bool, 'storeFailures':bool})
+        checkArguments(inspect.currentframe(), {'treeId':int, 'description':str, 'notes':str, 'strictMatch':bool, 'enabled':bool, 'storeFailures':bool})
 
         theData = {"treeId":treeId, "strictMatch":strictMatch, "enabled":enabled, "storeFailures":storeFailures, "description":description, "notes":notes }
-        theData = { k:v for k,v in theData.iteritems() if v is not None }
+        theData = { k:v for k,v in list(theData.items()) if v is not None }
         req = requests.post(templates.TREE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return process_response(req)
@@ -516,7 +516,7 @@ class RESTOpenTSDBClient:
                            data = json.dumps({"treeId":treeId}))
         resp = process_response(req)
         if isinstance(resp,list):
-            return map(lambda t: OpenTSDBTreeDefinition(**t),resp)
+            return [OpenTSDBTreeDefinition(**t) for t in resp]
         else:
             return OpenTSDBTreeDefinition(**resp)
 
@@ -527,7 +527,7 @@ class RESTOpenTSDBClient:
            All branches stem from the ROOT branch of a tree and this is usually the starting place when browsing. 
            To fetch the ROOT just call this endpoingt with a valid treeId. The root branch ID is also a 4 character encoding of the tree ID."""
 
-        checkArguments(inspect.currentframe(), {'treeId':int, 'branch':basestring},{'branch':lambda x:int(x,16)})
+        checkArguments(inspect.currentframe(), {'treeId':int, 'branch':str},{'branch':lambda x:int(x,16)})
 
         if branch is not None:
             theData = { "branch":branch }
@@ -617,14 +617,14 @@ class RESTOpenTSDBClient:
            A successful request will return the modified rule object. 
            Note that if a rule exists at the given level and order, any changes will be merged with or overwrite the existing rule."""
 
-        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int, 'type':basestring, 'description':basestring, 
-                                                'notes':basestring, 'field':basestring, 'customField':basestring, 'regex':basestring, 
-                                                'separator':basestring, 'regexGroupIdx':int, 'displayFormat':basestring},
+        checkArguments(inspect.currentframe(), {'treeId':int, 'level':int, 'order':int, 'type':str, 'description':str, 
+                                                'notes':str, 'field':str, 'customField':str, 'regex':str, 
+                                                'separator':str, 'regexGroupIdx':int, 'displayFormat':str},
                                                {'type':lambda x:x in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"], 'regexGroupIdx':lambda x: x>=0})
 
         theData = { "treeId":treeId, "level":level, "order":order, "regexGroupIdx":regexGroupIdx, "type":type, "description":description, 
                     "notes":notes, "field":field, "customField":customField, "regex":regex, "separator":separator, "displayFormat":displayFormat }
-        theData = { k:v for k,v in theData.iteritems() if v is not None }
+        theData = { k:v for k,v in list(theData.items()) if v is not None }
         req = requests.post(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                             data = json.dumps(theData))
         return OpenTSDBRule(**process_response(req,allow=[200,204,301,304]))
@@ -643,5 +643,5 @@ class RESTOpenTSDBClient:
             theData = { "treeId":treeId, "level":level, "order":order }
             req = requests.delete(templates.TREERULE_TEMPL % {'host': self.host,'port': self.port},
                                   data = json.dumps(theData))
-	return process_response(req, allow=[204])
+        return process_response(req, allow=[204])
 

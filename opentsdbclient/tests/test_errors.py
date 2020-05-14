@@ -98,9 +98,9 @@ class TestOpenTSDBError(TestCase):
                           "repo_status": "MODIFIED",
                           "version": "2.0.0"
                       }"""
-	response = FakeResponse(200,respContent)
+        response = FakeResponse(200,respContent)
 
-	self.assertEqual(None,checkErrors(response, False))
+        self.assertEqual(None,checkErrors(response, False))
 
     def test_process_response(self):
         """test the small method that processes the response for the client"""
@@ -116,12 +116,12 @@ class TestOpenTSDBError(TestCase):
                           "repo_status": "MODIFIED",
                           "version": "2.0.0"
                       }"""
-	response = FakeResponse(200,respContent)
+        response = FakeResponse(200,respContent)
         # no error status 200: should return the json content
         self.assertEqual(json.loads(respContent),process_response(response))
 
         # no error status 204: should return None
-	response = FakeResponse(204,respContent)
+        response = FakeResponse(204,respContent)
         self.assertEqual(None,process_response(response))
 
         # error: should raise the error 

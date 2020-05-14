@@ -209,20 +209,20 @@ class TestOpenTSDBExpQuery(TestCase):
 
         # mimics the example in the doc.
 
-	ts = OpenTSDBExpQuery.timeSection("sum","1y-ago")
-	f = OpenTSDBExpQuery.filters("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
-	m1 = OpenTSDBExpQuery.metric("a","f1","sys.cpu.user",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
-	m2 = OpenTSDBExpQuery.metric("b","f1","sys.cpu.iowait",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
-	e1 = OpenTSDBExpQuery.expression("e","a + b")
-	e2 = OpenTSDBExpQuery.expression("e2","e * 2")
-	e3 = OpenTSDBExpQuery.expression("e3","e2 * 2")
-	e4 = OpenTSDBExpQuery.expression("e4","e3 * 2")
-	e5 = OpenTSDBExpQuery.expression("e5","e4 + e2")
-	o1 = OpenTSDBExpQuery.output("e5","Mega expression")
-	o2 = OpenTSDBExpQuery.output("a","CPU User")
+        ts = OpenTSDBExpQuery.timeSection("sum","1y-ago")
+        f = OpenTSDBExpQuery.filters("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
+        m1 = OpenTSDBExpQuery.metric("a","f1","sys.cpu.user",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
+        m2 = OpenTSDBExpQuery.metric("b","f1","sys.cpu.iowait",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
+        e1 = OpenTSDBExpQuery.expression("e","a + b")
+        e2 = OpenTSDBExpQuery.expression("e2","e * 2")
+        e3 = OpenTSDBExpQuery.expression("e3","e2 * 2")
+        e4 = OpenTSDBExpQuery.expression("e4","e3 * 2")
+        e5 = OpenTSDBExpQuery.expression("e5","e4 + e2")
+        o1 = OpenTSDBExpQuery.output("e5","Mega expression")
+        o2 = OpenTSDBExpQuery.output("a","CPU User")
 
-	q = OpenTSDBExpQuery(ts,[f],[m1,m2],[e1,e2,e3,e4,e5],[o1,o2])
-	q.check()
+        q = OpenTSDBExpQuery(ts,[f],[m1,m2],[e1,e2,e3,e4,e5],[o1,o2])
+        q.check()
 
     def test_map(self):
         # here we test one complete example. Valid (programatically) but nonsense (would fail submission)
@@ -257,26 +257,26 @@ class TestOpenTSDBExpQuery(TestCase):
 
         # mimics the example in the doc.
 
-	ts = OpenTSDBExpQuery.timeSection("sum","1y-ago")
-	f = OpenTSDBExpQuery.filters("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
-	m1 = OpenTSDBExpQuery.metric("a","f1","sys.cpu.user",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
-	m2 = OpenTSDBExpQuery.metric("b","f1","sys.cpu.iowait",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
-	e1 = OpenTSDBExpQuery.expression("e","a + b")
-	e2 = OpenTSDBExpQuery.expression("e2","e * 2")
-	e3 = OpenTSDBExpQuery.expression("e3","e2 * 2")
-	e4 = OpenTSDBExpQuery.expression("e4","e3 * 2")
-	e5 = OpenTSDBExpQuery.expression("e5","e4 + e2")
-	o1 = OpenTSDBExpQuery.output("e5","Mega expression")
-	o2 = OpenTSDBExpQuery.output("a","CPU User")
+        ts = OpenTSDBExpQuery.timeSection("sum","1y-ago")
+        f = OpenTSDBExpQuery.filters("f1",[OpenTSDBFilter("wildcard","host","web*",True)])
+        m1 = OpenTSDBExpQuery.metric("a","f1","sys.cpu.user",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
+        m2 = OpenTSDBExpQuery.metric("b","f1","sys.cpu.iowait",fillPolicy=OpenTSDBExpQuery.fillPolicy("nan"))
+        e1 = OpenTSDBExpQuery.expression("e","a + b")
+        e2 = OpenTSDBExpQuery.expression("e2","e * 2")
+        e3 = OpenTSDBExpQuery.expression("e3","e2 * 2")
+        e4 = OpenTSDBExpQuery.expression("e4","e3 * 2")
+        e5 = OpenTSDBExpQuery.expression("e5","e4 + e2")
+        o1 = OpenTSDBExpQuery.output("e5","Mega expression")
+        o2 = OpenTSDBExpQuery.output("a","CPU User")
 
-	q = OpenTSDBExpQuery(ts,[f],[m1,m2],[e1,e2,e3,e4,e5],[o1,o2])
-	q.check()
+        q = OpenTSDBExpQuery(ts,[f],[m1,m2],[e1,e2,e3,e4,e5],[o1,o2])
+        q.check()
 
         expected = {
                     "time": {
                         "start": "1y-ago",
                         "aggregator":"sum",
-			'rate': False
+                        'rate': False
                     },
                     "filters": [
                         {

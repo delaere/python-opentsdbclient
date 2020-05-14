@@ -17,15 +17,15 @@ import copy
 import json
 import string
 import unicodedata as ud
-from opentsdberrors import OpenTSDBError
+from .opentsdberrors import OpenTSDBError
 
 class OpenTSDBAnnotation:
     def __init__(self,startTime, endTime=None, tsuid=None, description=None, notes=None, custom=None):
         self.startTime = startTime
         self.endTime = endTime
-        if self.endTime is 0: self.endTime = None
+        if self.endTime == 0: self.endTime = None
         self.tsuid = tsuid
-        if self.tsuid is u'': self.tsuid = None
+        if self.tsuid == '': self.tsuid = None
         self.description = description
         self.notes = notes
         self.custom = custom
@@ -35,22 +35,22 @@ class OpenTSDBAnnotation:
     def check(self):
         if not isinstance(self.startTime,int) or self.startTime<0: return False
         if not (self.endTime is None or (isinstance(self.endTime,int) and self.endTime>=self.startTime)): return False
-        if not self.tsuid is None and not self.tsuid is u'':
-            if not isinstance(self.tsuid,basestring) : return False
+        if not self.tsuid is None and self.tsuid != '':
+            if not isinstance(self.tsuid,str) : return False
             try:
                 int(self.tsuid,16)
             except:
                 return False
-        if not (self.description is None or isinstance(self.description,basestring)): return False
-        if not (self.notes is None or isinstance(self.notes,basestring)): return False
+        if not (self.description is None or isinstance(self.description,str)): return False
+        if not (self.notes is None or isinstance(self.notes,str)): return False
         if not self.custom is None:
-            for k,v in self.custom.iteritems():
-                if not (isinstance(k,basestring) and isinstance(v,basestring)): return False
+            for k,v in list(self.custom.items()):
+                if not (isinstance(k,str) and isinstance(v,str)): return False
         return True
 
     def getMap(self):
         myself = self.__dict__
-        return { k:v for k,v in myself.iteritems() if v is not None  }
+        return { k:v for k,v in list(myself.items()) if v is not None  }
 
     def json(self):
         return json.dumps(self.getMap())
@@ -74,32 +74,32 @@ class OpenTSDBAnnotation:
 class OpenTSDBTSMeta:
     """Meta data for a time series, identified by its tsuid"""
     def __init__(self, **kwargs):
-	self.created = kwargs.get("created",0)
+        self.created = kwargs.get("created",0)
         self.dataType = kwargs.get("dataType",'')
         self.description = kwargs.get("description",'')
         self.displayName = kwargs.get("displayName",'')
-	self.lastReceived = kwargs.get("lastReceived",0)
+        self.lastReceived = kwargs.get("lastReceived",0)
         self.min = kwargs.get("min",'NaN')
         self.max = kwargs.get("max",'NaN')
         self.notes = kwargs.get("notes",'')
         self.retention = kwargs.get("retention",0)
-	self.totalDatapoints = kwargs.get("totalDatapoints",0)
-	self.tsuid = kwargs.get("tsuid",'')
+        self.totalDatapoints = kwargs.get("totalDatapoints",0)
+        self.tsuid = kwargs.get("tsuid",'')
         self.units = kwargs.get("units",'')
         self.custom = kwargs["custom"] if kwargs.get("custom",None) is not None else {}
 
     def set(self, **kwargs):
-	self.created = kwargs.get("created",self.created)
+        self.created = kwargs.get("created",self.created)
         self.dataType = kwargs.get("dataType",self.dataType)
         self.description = kwargs.get("description",self.description)
         self.displayName = kwargs.get("displayName",self.displayName)
-	self.lastReceived = kwargs.get("lastReceived",self.lastReceived)
+        self.lastReceived = kwargs.get("lastReceived",self.lastReceived)
         self.min = kwargs.get("min",self.min)
         self.max = kwargs.get("max",self.max)
         self.notes = kwargs.get("notes",self.notes)
         self.retention = kwargs.get("retention",self.retention)
-	self.totalDatapoints = kwargs.get("totalDatapoints",self.totalDatapoints)
-	self.tsuid = kwargs.get("tsuid",self.tsuid)
+        self.totalDatapoints = kwargs.get("totalDatapoints",self.totalDatapoints)
+        self.tsuid = kwargs.get("tsuid",self.tsuid)
         self.units = kwargs.get("units",self.units)
         self.custom = kwargs.get("custom",self.custom) if kwargs.get("custom",self.custom) is not None else {}
 
@@ -124,9 +124,9 @@ class OpenTSDBTSMeta:
 class OpenTSDBUIDMeta:
     """Meta data for a UID (metric, tagk or tagv)"""
     def __init__(self, **kwargs):
-	self.name = kwargs.get("name",'')
-	self.uid = kwargs.get("uid",'')
-	self.created = kwargs.get("created",0)
+        self.name = kwargs.get("name",'')
+        self.uid = kwargs.get("uid",'')
+        self.created = kwargs.get("created",0)
         self.type = kwargs.get("type",'')
         self.description = kwargs.get("description",'')
         self.displayName = kwargs.get("displayName",'')
@@ -134,9 +134,9 @@ class OpenTSDBUIDMeta:
         self.custom = kwargs["custom"] if kwargs.get("custom",None) is not None else {}
 
     def set(self, **kwargs):
-	self.name = kwargs.get("name",self.name)
-	self.uid = kwargs.get("uid",self.uid)
-	self.created = kwargs.get("created",self.created)
+        self.name = kwargs.get("name",self.name)
+        self.uid = kwargs.get("uid",self.uid)
+        self.created = kwargs.get("created",self.created)
         self.type = kwargs.get("type",self.type)
         self.description = kwargs.get("description",self.description)
         self.displayName = kwargs.get("displayName",self.displayName)
@@ -176,7 +176,7 @@ class OpenTSDBTimeSeries:
         self.tagk_meta = {}
         self.tagv_meta = {}
         if self.tags is not None:
-            for k,v in self.tags.iteritems():
+            for k,v in list(self.tags.items()):
                 self.tagk_meta[k] = OpenTSDBUIDMeta(type="TAGK", name=k)
                 self.tagv_meta[v] = OpenTSDBUIDMeta(type="TAGV", name=v)
         # check
@@ -189,12 +189,12 @@ class OpenTSDBTimeSeries:
         if self.metric is not None:
             if not OpenTSDBTimeSeries.checkString(self.metric): 
                 return False
-            for t,v in self.tags.iteritems():
+            for t,v in list(self.tags.items()):
                 if not ((OpenTSDBTimeSeries.checkString(t) and OpenTSDBTimeSeries.checkString(v))):
                     return False
             if len(self.tags)<1 : return False
         if not self.metadata.tsuid is None:
-            if not isinstance(self.metadata.tsuid,basestring) : return False
+            if not isinstance(self.metadata.tsuid,str) : return False
             try:
                 int(self.metadata.tsuid,16)
             except:
@@ -209,18 +209,18 @@ class OpenTSDBTimeSeries:
           - Only the following characters are allowed: a to z, A to Z, 0 to 9, -, _, ., / or Unicode letters (as per the specification)"""
        asciichars = string.ascii_letters + "0123456789-_./"
        for c in thestring:
-           if not c in asciichars and not ud.category(unicode(c)) in ['Ll', 'Lu']:
+           if not c in asciichars and not ud.category(str(c)) in ['Ll', 'Lu']:
                return False
        return True
 
     def getMap(self, full=False):
         if full:
             myself = copy.deepcopy(self.__dict__)
-            for k,v in myself.iteritems():
+            for k,v in list(myself.items()):
                 if isinstance(v,(OpenTSDBUIDMeta,OpenTSDBTSMeta)):
                     myself[k] = v.getMap()
                 if isinstance(v,dict):
-                    for kk,vv in v.iteritems():
+                    for kk,vv in list(v.items()):
                         if isinstance(vv,(OpenTSDBUIDMeta,OpenTSDBTSMeta)):
                             myself[k][kk] = vv.getMap()
 
@@ -239,7 +239,7 @@ class OpenTSDBTimeSeries:
         mystring = []
         mystring.append(self.metric)
         mystring.append("{")
-        for k,v in self.tags.iteritems():
+        for k,v in list(self.tags.items()):
             mystring.append("%s=%s"%(k,v))
             mystring.append(",")
         mystring[-1] = "}"
@@ -264,7 +264,7 @@ class OpenTSDBTimeSeries:
             self.metric_meta.uid = r["metric_errors"][self.metric].split()[-1]
         else:
             raise OpenTSDBError(400,"assign_uid: unexpected error",json.dumps(r),"")
-        for k,v in self.tags.iteritems():
+        for k,v in list(self.tags.items()):
             try:
                 if k in r["tagk"]:
                     self.tagk_meta[k].uid = r["tagk"][k]
@@ -321,9 +321,9 @@ class OpenTSDBTimeSeries:
     def saveTo(self,client):
         self.metadata.saveTo(client)
         self.metric_meta.saveTo(client)
-        for _,meta in self.tagk_meta.iteritems():
+        for _,meta in list(self.tagk_meta.items()):
             meta.saveTo(client)
-        for _,meta in self.tagv_meta.iteritems():
+        for _,meta in list(self.tagv_meta.items()):
             meta.saveTo(client)
         return self
 
@@ -331,10 +331,10 @@ class OpenTSDBTimeSeries:
         self.metadata.delete(client)
         if recursive:
             self.metric_meta.delete(client)
-            for k,v in self.tagk_meta.iteritems():
+            for k,v in list(self.tagk_meta.items()):
                 v.delete(client)
                 v = OpenTSDBUIDMeta(type="TAGV", name=k)
-            for k,v in self.tagv_meta.iteritems():
+            for k,v in list(self.tagv_meta.items()):
                 v.delete(client)
                 v = OpenTSDBUIDMeta(type="TAGK", name=k)
         return self
@@ -345,7 +345,7 @@ class OpenTSDBMeasurement:
     def __init__(self,timeseries, timestamp, value):
         self.ts = timeseries
         self.timestamp = timestamp
-        if isinstance(value,basestring):
+        if isinstance(value,str):
             if '.' in value:
                 self.value = float(value)
             else:
@@ -365,7 +365,7 @@ class OpenTSDBMeasurement:
         # on most platforms, this means int or float, excluding long. But this would not be portable.
         if isinstance(self.value,int):
             if self.value < -9223372036854775808 or self.value > 9223372036854775807: return False
-        elif not isinstance(self.value,(float,basestring)) and not self.value is None: return False
+        elif not isinstance(self.value,(float,str)) and not self.value is None: return False
 
         return True
 
@@ -392,9 +392,9 @@ class OpenTSDBTreeDefinition:
         self.notes = notes
         self.rules = {}
         if rules is not None:
-            for level,orders in rules.iteritems():
+            for level,orders in list(rules.items()):
                 ordersdict = {}
-                for order,therule in orders.iteritems():
+                for order,therule in list(orders.items()):
                     ordersdict[order] = OpenTSDBRule(**therule)
                 self.rules[level] = ordersdict
         self.created = created
@@ -410,9 +410,9 @@ class OpenTSDBTreeDefinition:
         # we must have at least name (at creation time) or treeId (later on).
         if self.created is not None and self.treeId is None: return False
         if self.created is None and self.name is None: return False
-        if not (self.name is None or isinstance(self.name,basestring)): return False
-        if not (self.description is None or isinstance(self.description,basestring)): return False
-        if not (self.notes is None or isinstance(self.notes,basestring)): return False
+        if not (self.name is None or isinstance(self.name,str)): return False
+        if not (self.description is None or isinstance(self.description,str)): return False
+        if not (self.notes is None or isinstance(self.notes,str)): return False
         if not (self.created is None or isinstance(self.created,int)): return False
         if not (self.treeId is None or isinstance(self.treeId,int)): return False
         if not isinstance(self.strictMatch,bool) : return False
@@ -425,10 +425,10 @@ class OpenTSDBTreeDefinition:
 
     def getMap(self):
         myself = self.__dict__
-        for level,orders in self.rules.iteritems():
-            for order,therule in orders.iteritems():
+        for level,orders in list(self.rules.items()):
+            for order,therule in list(orders.items()):
                 orders[order]=therule.getMap()
-        return { k:v for k,v in myself.iteritems() if v is not None  }
+        return { k:v for k,v in list(myself.items()) if v is not None  }
 
     def json(self):
         return json.dumps(self.getMap())
@@ -482,18 +482,18 @@ class OpenTSDBRule:
         if not (isinstance(self.order,int) and self.order >=0): return False
         if not (isinstance(self.regexGroupIdx,int) and self.regexGroupIdx>=0): return False
         if self.type is None or self.type not in ["METRIC","METRIC_CUSTOM","TAGK","TAGK_CUSTOM","TAGV_CUSTOM"] : return False
-        if not (self.description is None or isinstance(self.description,basestring)) : return False
-        if not (self.notes is None or isinstance(self.notes,basestring)) : return False
-        if not (self.field is None or isinstance(self.field,basestring)) : return False
-        if not (self.customField is None or isinstance(self.customField,basestring)) : return False
-        if not (self.regex is None or isinstance(self.regex,basestring)) : return False
-        if not (self.separator is None or isinstance(self.separator,basestring)) : return False
-        if not (self.displayFormat is None or isinstance(self.displayFormat,basestring)) : return False
+        if not (self.description is None or isinstance(self.description,str)) : return False
+        if not (self.notes is None or isinstance(self.notes,str)) : return False
+        if not (self.field is None or isinstance(self.field,str)) : return False
+        if not (self.customField is None or isinstance(self.customField,str)) : return False
+        if not (self.regex is None or isinstance(self.regex,str)) : return False
+        if not (self.separator is None or isinstance(self.separator,str)) : return False
+        if not (self.displayFormat is None or isinstance(self.displayFormat,str)) : return False
         return True
 
     def getMap(self):
         myself = self.__dict__
-        return { k:v for k,v in myself.iteritems() if v is not None  }
+        return { k:v for k,v in list(myself.items()) if v is not None  }
 
     def json(self):
         return json.dumps(self.getMap())
@@ -532,7 +532,7 @@ class OpenTSDBTreeBranch:
             self.displayName = data["displayName"]
             self.branchId = data["branchId"]
             self.depth = data["depth"]
-            self.leaves = map(lambda l: (OpenTSDBTimeSeries(l["metric"], l["tags"], l["tsuid"]), l["displayName"]), data["leaves"])
+            self.leaves = [(OpenTSDBTimeSeries(l["metric"], l["tags"], l["tsuid"]), l["displayName"]) for l in data["leaves"]]
             if recursive:
                 self.branches = []
                 for b in data["branches"]:
@@ -540,7 +540,7 @@ class OpenTSDBTreeBranch:
                     b["recursive"]=True
                     self.branches.append(OpenTSDBTreeBranch(**b))
             else:
-                self.branches = map(lambda b:OpenTSDBTreeBranch(**b),data["branches"])
+                self.branches = [OpenTSDBTreeBranch(**b) for b in data["branches"]]
 
 
 class OpenTSDBTree(OpenTSDBTreeBranch):

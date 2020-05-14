@@ -37,53 +37,53 @@ class TestClientServer(TestCase):
     # simple info methods
 
     def test_get_statistics(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         stats= self.client.get_statistics()
         # should return a list of measurements.
         for s in stats:
             self.assertIsInstance(s,OpenTSDBMeasurement)
 
     def test_get_filters(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         filters = self.client.get_filters()
         # default filters should be there
         for std in ["not_iliteral_or","literal_or","wildcard","iliteral_or","regexp","iwildcard","not_literal_or"]:
             self.assertIn(std,filters)
 
     def test_get_configuration(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         conf = self.client.get_configuration()
         # all configuration items start with "tsd."
         for c in conf:
             self.assertEqual("tsd.",c[:4])
 
     def test_drop_caches(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         result = self.client.drop_caches()
         # this should always return this
-        expected = {u'status': u'200', u'message': u'Caches dropped'}
+        expected = {'status': '200', 'message': 'Caches dropped'}
         self.assertEqual(expected,result)
 
     def test_get_serializers(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         serializers = self.client.get_serializers()
         # This endpoint should always return data with the JSON serializer as the default.
         self.assertEqual(any(s["serializer"]=="json" for s in serializers),True)
 
     def test_get_version(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         v = self.client.get_version()
         self.assertEqual(2,int(v["version"].split('.')[0]))
-        self.assertEqual([u'full_revision', u'repo_status', u'timestamp', u'short_revision', u'repo', u'host', u'version', u'user'],v.keys())
+        self.assertEqual(['full_revision', 'repo_status', 'timestamp', 'short_revision', 'repo', 'host', 'version', 'user'],list(v.keys()))
 
     def test_get_aggregators(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         a = self.client.get_aggregators()
         for std in ['sum', 'min', 'avg', 'dev', 'max', 'count']:
             self.assertIn(std,a)
 
     def test_assign_uid(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         # nb: this will assign a uid to a random tagk at least.
         # the first time, it may also create other uids
         # the next times, there should be existing uids.
@@ -93,7 +93,7 @@ class TestClientServer(TestCase):
         self.assertIn(uid,response["tagv"])
 
     def test_put_measurements(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         # basic functional tests
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": "web01","dc": "lga"})
         ts.assign_uid(self.client) # make sure that the time series is known
@@ -117,14 +117,14 @@ class TestClientServer(TestCase):
         response = self.client.put_measurements([meas], compress=True)
 
     def test_annotation(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         now = int(time.time())
         myAnnotation = self.client.set_annotation(now,
                                                   description="Testing Annotations", 
                                                   notes="These would be details about the event, the description is just a summary", 
                                                   custom={"owner": "jdoe","dept": "ops"})
-        expected = {'custom':{"owner": "jdoe","dept": "ops"},'description': u'Testing Annotations',
-                    'notes': u'These would be details about the event, the description is just a summary',
+        expected = {'custom':{"owner": "jdoe","dept": "ops"},'description': 'Testing Annotations',
+                    'notes': 'These would be details about the event, the description is just a summary',
                     'startTime': now}
 
         self.assertEqual(expected,myAnnotation.getMap())
@@ -154,8 +154,8 @@ class TestClientServer(TestCase):
                                           notes="These would be details about the event, the description is just a summary", 
                                           custom={"owner": "jdoe","dept": "ops"})
         myAnnotation.saveTo(self.client)
-        expected = {'custom':{"owner": "jdoe","dept": "ops"},'description': u'Testing Annotations',
-                    'notes': u'These would be details about the event, the description is just a summary',
+        expected = {'custom':{"owner": "jdoe","dept": "ops"},'description': 'Testing Annotations',
+                    'notes': 'These would be details about the event, the description is just a summary',
                     'startTime': now}
         self.assertEqual(expected,myAnnotation.getMap())
         
@@ -176,7 +176,7 @@ class TestClientServer(TestCase):
     # ts meta (R/W) _ includes define_retention
 
     def test_tsmeta(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
 
         host = self.getUniqueString()
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
@@ -210,7 +210,7 @@ class TestClientServer(TestCase):
     # uid meta (R/W)
 
     def test_uidmeta(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
 
         host = self.getUniqueString()
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
@@ -246,7 +246,7 @@ class TestClientServer(TestCase):
 
     def test_OpenTSDBTimeSeries_meta(self):
         # this combines functionalities from both tsmeta and uidmeta
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         host = self.getUniqueString()
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
         ts.assign_uid(self.client) # make sure that the time series is known
@@ -287,7 +287,7 @@ class TestClientServer(TestCase):
     # queries
 
     def test_suggest(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         host = self.getUniqueString()
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
         ts.assign_uid(self.client) # make sure that the time series is known
@@ -305,7 +305,7 @@ class TestClientServer(TestCase):
         self.assertIn("sys.cpu.nice",self.client.suggest("metrics","sys"))
 
     def test_search(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         #limited to /api/search/lookup since others rely on plugins...
         host = self.getUniqueString()
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
@@ -316,11 +316,11 @@ class TestClientServer(TestCase):
             tsuid = self.client.get_tsmeta(metric="sys.cpu.nice{host=%s,dc=lga}"%host)[0]["tsuid"]
 
         r = self.client.search("LOOKUP",metric="sys.cpu.nice",tags={"host": host,"dc": "lga"})
-        reference = {u'tsuid': tsuid, u'metric': u'sys.cpu.nice', u'tags': {u'host': host, u'dc': u'lga'}}
+        reference = {'tsuid': tsuid, 'metric': 'sys.cpu.nice', 'tags': {'host': host, 'dc': 'lga'}}
         self.assertIn(reference,r["results"])
 
     def test_query(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
         # prepare some data
         host = self.getUniqueString()
         ts = OpenTSDBTimeSeries("sys.cpu.nice",{"host": host,"dc": "lga"})
@@ -386,7 +386,7 @@ class TestTreeManipulation(TestCase):
 
 
     def test_tree(self):
-        if self.version is not 2: self.skipTest("No server running")
+        if self.version != 2: self.skipTest("No server running")
 
         #lots of things to try...
 
